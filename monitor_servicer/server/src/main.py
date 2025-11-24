@@ -13,13 +13,23 @@ from src.services.db_operations.save import saveDB
 def run_consumer(buffer, connection):
     for msg in connection.message_stream("results"):
         if msg is not None:
-            buffer[msg["user"]] = msg
+            user_ip = msg.get("user")
+
+            if user_ip:
+                # Si el usuario ya existe, apendizamos los nuevos resultados
+                if user_ip in buffer:
+                    existing_results = buffer[user_ip].get("results", [])
+                    buffer[user_ip]["results"] = existing_results + msg.get(
+                        "results", []
+                    )
+                    return
+                buffer[user_ip] = msg
 
 
 def main():
     load_dotenv()
     connection = Connection()
-    buffer_results = None
+    buffer_results = loadDB()
     app = FastAPI()
 
     # endpoints
@@ -30,7 +40,6 @@ def main():
     # startup event
     @app.on_event("startup")
     def startup_event():
-        buffer_results = loadDB()
         t = threading.Thread(
             target=run_consumer, args=(buffer_results, connection), daemon=True
         )
