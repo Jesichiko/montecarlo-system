@@ -14,16 +14,12 @@ def run_consumer(buffer, connection):
     for msg in connection.message_stream("results"):
         if msg is not None:
             user_ip = msg.get("user")
+            result = msg.get("result")
 
-            if user_ip:
-                # Si el usuario ya existe, apendizamos los nuevos resultados
-                if user_ip in buffer:
-                    existing_results = buffer[user_ip].get("results", [])
-                    buffer[user_ip]["results"] = existing_results + msg.get(
-                        "results", []
-                    )
-                    return
-                buffer[user_ip] = msg
+            if user_ip in buffer:
+                buffer[user_ip]["results"].append(result)
+                return
+            buffer[user_ip] = {"user": user_ip, "results": [result]}
 
 
 def main():
