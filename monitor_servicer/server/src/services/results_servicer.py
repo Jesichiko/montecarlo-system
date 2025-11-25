@@ -1,4 +1,4 @@
-from protos import results_service_pb2, results_service_pb2_grpc
+from shared_lib.protos import results_service_pb2, results_service_pb2_grpc
 
 
 class ResultsServicer(results_service_pb2_grpc.ResultsServiceServicer):

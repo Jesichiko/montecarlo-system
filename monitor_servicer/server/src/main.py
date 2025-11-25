@@ -4,7 +4,7 @@ from concurrent import futures
 
 import grpc
 from dotenv import load_dotenv
-from protos import results_service_pb2_grpc
+from shared_lib.protos import results_service_pb2_grpc
 from src.rabbitmq.connection import Connection
 from src.services.db_operations.load import loadDB
 from src.services.db_operations.save import saveDB

@@ -4,18 +4,18 @@ import customtkinter as ctk
 from dotenv import load_dotenv
 import grpc
 from google.protobuf import empty_pb2
-from protos import results_service_pb2_grpc
+from shared_lib.protos import results_service_pb2_grpc
 
 
 class NetworkMonitorApp(ctk.CTk):
     def __init__(self):
+        super().__init__()
         self.title("Monitor de resultados")
         self.geometry("1400x900")
         
         # tema oscuro
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
-        super().__init__()
 
         # estado
         self.monitoring = False

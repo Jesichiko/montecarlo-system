@@ -1,0 +1,6 @@
+pyproject.toml
+shared_lib.egg-info/PKG-INFO
+shared_lib.egg-info/SOURCES.txt
+shared_lib.egg-info/dependency_links.txt
+shared_lib.egg-info/requires.txt
+shared_lib.egg-info/top_level.txt
