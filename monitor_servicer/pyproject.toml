@@ -3,9 +3,12 @@ name = "server-results-consumer"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
+    "customtkinter>=5.2.2",
     "dotenv>=0.9.9",
     "grpcio>=1.76.0",
     "grpcio-tools>=1.76.0",
     "pika>=1.3.2",
-    "shared-lib"
 ]
+
+[tool.uv.sources]
+shared-lib = { path = "shared_lib", editable = true }
