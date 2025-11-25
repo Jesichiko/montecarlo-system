@@ -10,5 +10,5 @@ class ResultsServicer(results_service_pb2_grpc.ResultsServiceServicer):
 
         for user_ip, values in self.buffer.items():
             result_list = response.results[user_ip]
-            result_list.values.extend(values)
+            result_list.values.extend(values.get("results", []))
         return response

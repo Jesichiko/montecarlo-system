@@ -14,6 +14,7 @@ from src.services.results_servicer import ResultsServicer
 def run_consumer(buffer, connection):
     for msg in connection.message_stream("results"):
         if msg is not None:
+            print(f"Mensaje {msg} consumido")
             user_ip = msg.get("user")
             result = msg.get("result")
 
@@ -27,12 +28,12 @@ def main():
     load_dotenv()
     connection = Connection()
     buffer_results = loadDB()
+    print("Base de datos cargada")
 
     # hilo para consumir mensajes de resultados de nuevos usuarios
     consumer_thread = threading.Thread(
         target=run_consumer, args=(buffer_results, connection), daemon=True
     )
-    consumer_thread.start()
 
     # publicamos servicio ResultsServicer
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
@@ -40,13 +41,17 @@ def main():
         ResultsServicer(buffer_results), server
     )
 
-    # iniciamos server
     server_address = f"{os.getenv('SERVER_HOST')}:{os.getenv('SERVER_PORT')}"
     server.add_insecure_port(server_address)
+    
+    # iniciamos server
     server.start()
+    consumer_thread.start()
+    print(f"Iniciado server consumidor/cache de resultados en {server_address}")
     try:
         server.wait_for_termination()
     except KeyboardInterrupt:
+        print("Termiando servidor, guardando base de datos")
         saveDB(buffer_results)
         connection.close_connection()
         server.stop(0)
