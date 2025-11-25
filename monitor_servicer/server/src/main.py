@@ -1,13 +1,14 @@
-import json
 import os
 import threading
+from concurrent import futures
 
-import uvicorn
+import grpc
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from src.protos import results_service_pb2_grpc
 from src.rabbitmq.connection import Connection
 from src.services.db_operations.load import loadDB
 from src.services.db_operations.save import saveDB
+from src.services.results_servicer import ResultsServicer
 
 
 def run_consumer(buffer, connection):
@@ -18,37 +19,37 @@ def run_consumer(buffer, connection):
 
             if user_ip in buffer:
                 buffer[user_ip]["results"].append(result)
-                return
-            buffer[user_ip] = {"user": user_ip, "results": [result]}
+            else:
+                buffer[user_ip] = {"user": user_ip, "results": [result]}
 
 
 def main():
     load_dotenv()
     connection = Connection()
     buffer_results = loadDB()
-    app = FastAPI()
 
-    # endpoints
-    @app.get("/results")
-    async def users():
-        return json.dumps(buffer_results)
+    # hilo para consumir mensajes de resultados de nuevos usuarios
+    consumer_thread = threading.Thread(
+        target=run_consumer, args=(buffer_results, connection), daemon=True
+    )
+    consumer_thread.start()
 
-    # startup event
-    @app.on_event("startup")
-    def startup_event():
-        t = threading.Thread(
-            target=run_consumer, args=(buffer_results, connection), daemon=True
-        )
-        t.start()
+    # publicamos servicio ResultsServicer
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    results_service_pb2_grpc.add_ResultsServiceServicer_to_server(
+        ResultsServicer(buffer_results), server
+    )
 
-    # shutdown event
-    @app.on_event("shutdown")
-    def shutdown_event():
+    # iniciamos server
+    server_address = f"{os.getenv('SERVER_HOST')}:{os.getenv('SERVER_PORT')}"
+    server.add_insecure_port(server_address)
+    server.start()
+    try:
+        server.wait_for_termination()
+    except KeyboardInterrupt:
         saveDB(buffer_results)
         connection.close_connection()
-
-    # corremos el server dada ip y port en .env
-    uvicorn.run(app, host=os.getenv("SERVER_HOST"), port=int(os.getenv("SERVER_PORT")))
+        server.stop(0)
 
 
 if __name__ == "__main__":

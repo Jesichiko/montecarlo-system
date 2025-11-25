@@ -20,10 +20,13 @@ class Connection:
         self.channel.queue_declare(queue="scenarios", durable=False)
 
     def public_function(self, function: str):
+        # eliminamos la anterior funcion que habia en cola 
+        function_json = json.dumps(function)
+        self.channel.queue_purge(queue="functions")
         self.channel.basic_publish(
             exchange="",
             routing_key="functions",
-            body=function,
+            body=function_json,
             properties=pika.BasicProperties(delivery_mode=2),
         )
         # eliminamos todos los escenarios al publicar una nueva func

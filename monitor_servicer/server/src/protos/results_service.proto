@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+service ResultsService {
+  rpc GetResults(google.protobuf.Empty) returns (GetResultsResponse);
+}
+
+message GetResultsResponse {
+  map<string, ResultList> results = 1;
+}
+
+message ResultList {
+  repeated double values = 1;
+}
