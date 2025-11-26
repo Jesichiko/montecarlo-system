@@ -1,10 +1,12 @@
 import os
 import threading
 from concurrent import futures
+from pprint import pprint
 
 import grpc
 from dotenv import load_dotenv
 from shared_lib.protos import results_service_pb2_grpc
+
 from src.rabbitmq.connection import Connection
 from src.services.db_operations.operations import DBOperations
 from src.services.results_servicer import ResultsServicer
@@ -27,7 +29,9 @@ def main():
     load_dotenv()
     connection = Connection()
     buffer_results = DBOperations.loadDB()
-    print("Base de datos cargada")
+    if buffer_results:
+        print("Resultados en cache cargados")
+        pprint(buffer_results)
 
     # hilo para consumir mensajes de resultados de nuevos usuarios
     consumer_thread = threading.Thread(

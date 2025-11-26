@@ -2,8 +2,10 @@ import os
 import csv
 
 class DBOperations:
-    def loadDB(cls):
-        csv_path = os.path.join(os.path.dirname(__file__), "../../database/results.csv")
+    @staticmethod
+    def loadDB():
+        BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+        csv_path = os.path.join(BASE_DIR, "database", "results.csv")
         buffer = {}
 
         # si el archivo no existe retornamos buffer vacio
@@ -24,11 +26,13 @@ class DBOperations:
 
         return buffer
 
-    def saveDB(cls, buffer):
+    @staticmethod
+    def saveDB(buffer):
         if buffer is None:
             return
 
-        csv_path = os.path.join(os.path.dirname(__file__), "../../database/results.csv")
+        BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+        csv_path = os.path.join(BASE_DIR, "database", "results.csv")
         # creamos dir si no existe
         os.makedirs(os.path.dirname(csv_path), exist_ok=True)
 
