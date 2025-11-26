@@ -85,7 +85,7 @@ class Dashboard(ctk.CTk):
         # Boton de Parada/Inicio
         self.stop_btn = ctk.CTkButton(
             controls_frame,
-            text="Iniciar envio",
+            text="Iniciar publicacion",
             fg_color=COLORS["accent_green"],
             hover_color="#00d185",
             text_color="black",
@@ -300,7 +300,7 @@ class Dashboard(ctk.CTk):
         self.is_running = not self.is_running
         if self.is_running:
             self.stop_btn.configure(
-                text="Parar envio",
+                text="Parar publicacion",
                 fg_color=COLORS["accent_red"],
                 hover_color="#cc3333",
                 text_color="white",

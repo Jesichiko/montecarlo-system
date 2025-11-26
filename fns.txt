@@ -1,2 +1,4 @@
 f(x,y)=x+y,normal
 f(x)=x^2,binomial
+f(x,y,z)=x*y*z, exponential
+f(x)=x^x, poisson

@@ -1,2 +1,0 @@
-grpcio>=1.76.0
-protobuf>=5.28.0

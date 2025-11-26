@@ -6,8 +6,7 @@ import grpc
 from dotenv import load_dotenv
 from shared_lib.protos import results_service_pb2_grpc
 from src.rabbitmq.connection import Connection
-from src.services.db_operations.load import loadDB
-from src.services.db_operations.save import saveDB
+from src.services.db_operations.operations import DBOperations
 from src.services.results_servicer import ResultsServicer
 
 
@@ -27,7 +26,7 @@ def run_consumer(buffer, connection):
 def main():
     load_dotenv()
     connection = Connection()
-    buffer_results = loadDB()
+    buffer_results = DBOperations.loadDB()
     print("Base de datos cargada")
 
     # hilo para consumir mensajes de resultados de nuevos usuarios
@@ -43,7 +42,7 @@ def main():
 
     server_address = f"{os.getenv('SERVER_HOST')}:{os.getenv('SERVER_PORT')}"
     server.add_insecure_port(server_address)
-    
+
     # iniciamos server
     server.start()
     consumer_thread.start()
@@ -52,7 +51,7 @@ def main():
         server.wait_for_termination()
     except KeyboardInterrupt:
         print("Termiando servidor, guardando base de datos")
-        saveDB(buffer_results)
+        DBOperations.saveDB(buffer_results)
         connection.close_connection()
         server.stop(0)
 
