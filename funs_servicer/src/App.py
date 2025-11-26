@@ -1,11 +1,12 @@
-import customtkinter as ctk
-from tkinter import filedialog
 import threading
 import time
+from tkinter import filedialog
 
+import customtkinter as ctk
+
+from src.rabbitmq.connection import Connection
 from src.services.functions_in_file import FileFunctionReader
 from src.services.scenario_generator import ScenarioGenerator
-from src.rabbitmq.connection import Connection
 
 # Paleta de colores
 COLORS = {
@@ -30,13 +31,15 @@ class Dashboard(ctk.CTk):
         self.geometry("1200x800")
         self.configure(fg_color=COLORS["background"])
 
-        # Inicializar servicios
+        # servicios
         self.function_reader = FileFunctionReader()
         self.scenario_generator = None
         self.rabbitmq_connection = None
+
+        # variables de runtime
         self.is_running = False
-        self.function_interval = 0
-        self.scenario_interval = 0
+        self.function_interval = 1
+        self.scenario_interval = 1
         self.current_function = ". . ."
         self.current_distribution = ". . ."
         self.current_scenario = []
@@ -113,7 +116,7 @@ class Dashboard(ctk.CTk):
         self.create_card(
             self.left_frame,
             lambda p: self.card_content_slider(
-                p, "Intervalo de Funciones", "seg", 0, 60
+                p, "Intervalo de Funciones", "seg", 1, 30
             ),
         )
 
@@ -124,7 +127,7 @@ class Dashboard(ctk.CTk):
         self.create_card(
             self.left_frame,
             lambda p: self.card_content_slider(
-                p, "Intervalo de Generacion", "seg", 0, 30
+                p, "Intervalo de Generacion", "seg", 1, 30
             ),
         )
 
@@ -296,7 +299,82 @@ class Dashboard(ctk.CTk):
         self.scenario_textbox.insert("0.0", "Esperando escenarios...")
         self.scenario_textbox.configure(state="disabled")
 
+    def show_error_dialog(self, title, message):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(title)
+        dialog.geometry("450x220")
+        dialog.configure(fg_color=COLORS["background"])
+        dialog.resizable(False, False)
+
+        # Centrar el dialogo respecto a la ventana principal
+        dialog.transient(self)
+
+        # Esperar a que el diálogo se dibuje
+        dialog.update_idletasks()
+
+        # Obtener dimensiones de la ventana principal
+        main_x = self.winfo_x()
+        main_y = self.winfo_y()
+        main_width = self.winfo_width()
+        main_height = self.winfo_height()
+
+        # Obtener dimensiones del diálogo
+        dialog_width = dialog.winfo_width()
+        dialog_height = dialog.winfo_height()
+
+        # Calcular posición centrada
+        x = main_x + (main_width - dialog_width) // 2
+        y = main_y + (main_height - dialog_height) // 2
+
+        dialog.geometry(f"+{x}+{y}")
+
+        # Contenido
+        content_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        content_frame.pack(fill="both", expand=True, padx=30, pady=30)
+
+        # Icono de error
+        ctk.CTkLabel(
+            content_frame,
+            text="⚠️",
+            font=("Roboto", 48),
+        ).pack(pady=(0, 15))
+
+        # Mensaje
+        ctk.CTkLabel(
+            content_frame,
+            text=message,
+            font=("Roboto", 13),
+            text_color=COLORS["text_white"],
+            wraplength=390,
+            justify="center",
+        ).pack(pady=(0, 20))
+
+        # Boton OK
+        ctk.CTkButton(
+            content_frame,
+            text="OK",
+            fg_color=COLORS["accent_red"],
+            hover_color="#cc3333",
+            command=dialog.destroy,
+            width=100,
+        ).pack()
+
+        # Intentar tomar grab
+        try:
+            dialog.wait_visibility()
+            dialog.grab_set()
+        except Exception:
+            pass
+
     def toggle_process(self):
+        # verifcamos que se haya cargado un archivo
+        if not self.function_reader.stored_functions:
+            self.show_error_dialog(
+                "Error: No hay funciones cargadas",
+                "Por favor, carga un archivo de funciones antes de iniciar el envio",
+            )
+            return
+
         self.is_running = not self.is_running
         if self.is_running:
             self.stop_btn.configure(
@@ -305,13 +383,22 @@ class Dashboard(ctk.CTk):
                 hover_color="#cc3333",
                 text_color="white",
             )
-            # Iniciar publicacion
+            # iniciammos publicacion
             if self.rabbitmq_connection is None:
                 try:
                     self.rabbitmq_connection = Connection()
-                except Exception as e:
-                    print(f"Error conectando a RabbitMQ: {e}")
+                except Exception:
                     self.is_running = False
+                    self.stop_btn.configure(
+                        text="Iniciar publicacion",
+                        fg_color=COLORS["accent_green"],
+                        hover_color="#00d185",
+                        text_color="black",
+                    )
+                    self.show_error_dialog(
+                        "Error de conexion con RabbitMQ",
+                        "No se pudo conectar con RabbitMQ",
+                    )
                     return
 
             if self.publishing_thread is None or not self.publishing_thread.is_alive():
@@ -321,11 +408,15 @@ class Dashboard(ctk.CTk):
                 self.publishing_thread.start()
         else:
             self.stop_btn.configure(
-                text="Iniciar envio",
+                text="Iniciar publicacion",
                 fg_color=COLORS["accent_green"],
                 hover_color="#00d185",
                 text_color="black",
             )
+            self.function_label.configure(text=". . .")
+            self.distribution_label.configure(text=". . .")    
+            self.scenario_textbox.delete("0.0", "end")
+            self.scenario_textbox.insert("0.0", "Esperando escenarios...")
 
     def load_file(self):
         filename = filedialog.askopenfilename(
@@ -334,51 +425,65 @@ class Dashboard(ctk.CTk):
         )
 
         if filename:
-            self.function_reader.load_functions(filename)
-
-            # Mostrar preview
-            self.preview_textbox.configure(state="normal")
-            self.preview_textbox.delete("0.0", "end")
-
             try:
-                with open(filename, "r") as f:
-                    content = f.read()
-                    self.preview_textbox.insert("0.0", content)
-            except Exception as e:
-                self.preview_textbox.insert("0.0", f"Error cargando archivo: {e}")
+                self.function_reader.load_functions(filename)
 
-            self.preview_textbox.configure(state="disabled")
+                # Verificar que se cargaron funciones
+                if not self.function_reader.stored_functions:
+                    self.show_error_dialog(
+                        "Error: Archivo vacío o inválido",
+                        "El archivo no contiene funciones válidas.\n\nAsegúrate de que cada línea tenga el formato:\nfunción, distribución",
+                    )
+                    return
 
-            # Obtener las funciones de distribucion unicas
-            distributions = list(set(self.function_reader.stored_func_scenarios))
-            self.scenario_generator = ScenarioGenerator(distributions)
+                # Mostrar preview
+                self.preview_textbox.configure(state="normal")
+                self.preview_textbox.delete("0.0", "end")
+
+                try:
+                    with open(filename, "r") as f:
+                        content = f.read()
+                        self.preview_textbox.insert("0.0", content)
+                except Exception as e:
+                    self.preview_textbox.insert("0.0", f"Error cargando archivo: {e}")
+
+                self.preview_textbox.configure(state="disabled")
+
+                # Obtener las funciones de distribucion unicas
+                distributions = list(set(self.function_reader.stored_func_scenarios))
+                self.scenario_generator = ScenarioGenerator(distributions)
+
+            except Exception:
+                self.show_error_dialog(
+                    "Error al cargar archivo",
+                    "No se pudo cargar el archivo de funciones",
+                )
 
     def parse_function_variables(self, function_str: str) -> int:
-        """
-        Parsea una funcion matematica y cuenta cuantas variables tiene.
-        Busca patrones como f(x), f(x,y), f(x,y,z), etc.
-        """
+        # Encuentra cuartas variables tiene una func
         import re
 
-        # Buscar el patron f(...) donde ... son las variables
+        # patron f(...) donde ... son las variables
         match = re.search(r"f\((.*?)\)", function_str)
         if match:
             vars_str = match.group(1)
-            # Separar por comas y contar
+            # separar por comas y contar
             variables = [v.strip() for v in vars_str.split(",") if v.strip()]
             return len(variables)
 
-        # Si no encuentra el patron, retornar 1 por defecto
+        # Si no encuentra ninguna variable, retornar 1
         return 1
 
     def publish_loop(self):
         last_function_time = 0
         last_scenario_time = 0
+        function = None
+        scenario = None
 
         while self.is_running:
             current_time = time.time()
 
-            # Publicar nueva funcion si es tiempo (solo si intervalo > 0)
+            # publicamos nueva funcion si es tiempo e intervalo > 0
             if (
                 self.function_interval > 0
                 and current_time - last_function_time >= self.function_interval
@@ -388,64 +493,152 @@ class Dashboard(ctk.CTk):
                     distribution = self.function_reader.read_scenario()
 
                     if function:
-                        self.rabbitmq_connection.public_function(function)
+                        try:
+                            self.rabbitmq_connection.public_function(function)
+                        except Exception:
+                            self.is_running = False
+                            self.after(
+                                0,
+                                lambda: self.show_error_dialog(
+                                    "Error de Publicacion",
+                                    "Se perdio la conexion con RabbitMQ",
+                                ),
+                            )
+                            self.after(
+                                0,
+                                lambda: self.stop_btn.configure(
+                                    text="Iniciar publicacion",
+                                    fg_color=COLORS["accent_red"],
+                                    hover_color="#cc3333",
+                                    text_color="white",
+                                ),
+                            )
+                            return
 
-                        # Parsear cuantas variables tiene la funcion
+                        # parseamos cuantas variables tiene la funcion
                         num_variables = self.parse_function_variables(function)
 
-                        # Actualizar UI
+                        # actualizamos vars de UI
                         self.current_function = function
                         self.current_distribution = distribution
                         self.current_sample_size = num_variables
                         self.after(0, self.update_function_display)
 
                         last_function_time = current_time
-                        last_scenario_time = current_time  # Reset scenario timer
+                        last_scenario_time = current_time  # reset scenario timer
 
                 except Exception as e:
-                    print(f"Error publicando funcion: {e}")
+                    self.is_running = False
 
-            # Publicar escenario si es tiempo (solo si intervalo > 0 y hay distribucion)
+                    self.after(
+                        0, lambda err=e: self.show_error_dialog("Error", f"{err}")
+                    )
+                    self.after(
+                        0,
+                        lambda: self.stop_btn.configure(
+                            text="Iniciar Publicacion",
+                            fg_color=COLORS["accent_red"],
+                            hover_color="#cc3333",
+                            text_color="white",
+                        ),
+                    )
+
+            # publicamos escenario solo si intervalo > 0 y hay distribucion
             if (
                 self.scenario_interval > 0
                 and self.current_distribution != ". . ."
                 and current_time - last_scenario_time >= self.scenario_interval
             ):
                 try:
-                    # Usar el tamaño de muestra basado en el numero de variables
+                    # tamaño de muestra basado en el numero de variables de la func actual
                     scenario = self.scenario_generator.get_scenario(
                         self.current_sample_size, self.current_distribution
                     )
 
-                    if scenario:
-                        self.rabbitmq_connection.public_scenario(scenario)
-                        self.current_scenario = scenario
-                        self.after(0, self.update_scenario_display)
+                    # solo publicamos scenario si hay function publicada
+                    if scenario and function:
+                        try:
+                            self.rabbitmq_connection.public_scenario(scenario)
+                            self.current_scenario = scenario
+                            self.after(0, self.update_scenario_display)
+                        except Exception:
+                            self.is_running = False
+                            self.after(
+                                0,
+                                lambda: self.show_error_dialog(
+                                    "Error de Publicacion",
+                                    "Se perdio la conexion con RabbitMQ",
+                                ),
+                            )
+                            self.after(
+                                0,
+                                lambda: self.stop_btn.configure(
+                                    text="Iniciar publicacion",
+                                    fg_color=COLORS["accent_red"],
+                                    hover_color="#cc3333",
+                                    text_color="white",
+                                ),
+                            )
+                            return
+                    elif not scenario:
+                        # distribucion no reconocida
+                        error_msg = f"No se pudo generar escenario.\n\nDistribucion '{
+                            self.current_distribution
+                        }' no reconocida."
+                        self.after(
+                            0,
+                            lambda msg=error_msg: self.update_scenario_error_display(
+                                msg
+                            ),
+                        )
 
                     last_scenario_time = current_time
 
                 except Exception as e:
-                    print(f"Error publicando escenario: {e}")
+                    self.is_running = False
 
-            time.sleep(0.1)  # Small sleep to prevent busy waiting
+                    self.after(
+                        0, lambda err=e: self.show_error_dialog("Error", f"{err}")
+                    )
+                    self.after(
+                        0,
+                        lambda: self.stop_btn.configure(
+                            text="Iniciar Publicacion",
+                            fg_color=COLORS["accent_red"],
+                            hover_color="#cc3333",
+                            text_color="white",
+                        ),
+                    )
+
+            time.sleep(0.1)
 
     def update_function_display(self):
+        # func para actualizar la card de funciones y escenarios publicandose
         self.function_label.configure(text=self.current_function)
         self.distribution_label.configure(text=self.current_distribution)
 
     def update_scenario_display(self):
-        # Formatear todos los valores del escenario para mostrar
+        # formateo de todos los valores del escenario para mostrar
         if self.current_scenario:
-            # Redondear valores a 2 decimales
+            # redondeo de valores a 2 decimales
             rounded = [round(x, 2) for x in self.current_scenario]
             scenario_text = ", ".join(map(str, rounded))
             scenario_text = f"[{scenario_text}]"
             scenario_text += f"\n\nTotal de valores: {len(self.current_scenario)}"
 
-            self.scenario_textbox.configure(state="normal")
+            self.scenario_textbox.configure(
+                state="normal", text_color=COLORS["text_muted"]
+            )
             self.scenario_textbox.delete("0.0", "end")
             self.scenario_textbox.insert("0.0", scenario_text)
             self.scenario_textbox.configure(state="disabled")
+
+    def update_scenario_error_display(self, error_message):
+        # pop de mensaje de error
+        self.scenario_textbox.configure(state="normal", text_color=COLORS["accent_red"])
+        self.scenario_textbox.delete("0.0", "end")
+        self.scenario_textbox.insert("0.0", error_message)
+        self.scenario_textbox.configure(state="disabled")
 
 
 if __name__ == "__main__":

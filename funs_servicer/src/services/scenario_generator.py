@@ -30,6 +30,6 @@ class ScenarioGenerator:
         self.funcs = {fn: self.functions[fn] for fn in fns if fn in self.functions}
 
     def get_scenario(self, amount: int, fn: str) -> list[int]:
-        if fn not in self.funcs:
+        if fn not in self.funcs or amount == 0:
             return None
         return self.funcs[fn](size=amount, **self.defaults[fn]).tolist()
