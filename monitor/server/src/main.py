@@ -31,7 +31,7 @@ def consume_functions(functions: set):
     for func in connection.message_stream("functions"):
         if not func:
             continue
-        if func not in functions:
+        if func in functions:
             continue
 
         print(f"Funcion recibida: {func}")

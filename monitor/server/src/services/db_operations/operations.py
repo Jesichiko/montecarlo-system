@@ -1,6 +1,5 @@
 import csv
 import os
-import re
 from typing import Dict, Set, Tuple
 
 
@@ -27,15 +26,13 @@ class DBOperations:
                         continue
                     key = row[0].strip()
 
-                    # functions
+                    # functions - fila especial
                     if key == "functions":
-                        functions_str = ",".join(row[1:])
-                        # Buscamos patrones como "f(...)" para identificar cada funcion
-                        # Este regex captura funciones completas como f(x)=...,
-                        func_pattern = r"(f\([^)]+\)=[^,]+(?:,[a-z]+)?)"
-                        matches = re.findall(func_pattern, functions_str)
-                        if matches:
-                            published_functions = set(m.strip() for m in matches)
+                        # Las funciones estan en las columnas siguientes, una por celda
+                        for func in row[1:]:
+                            func = func.strip()
+                            if func:
+                                published_functions.add(func)
                         continue
 
                     # ips y resultados
@@ -48,7 +45,8 @@ class DBOperations:
 
         except Exception as e:
             print(f"Error loading DB: {e}")
-            return {}, []
+            return {}, set()
+        
         return user_results, published_functions
 
     def saveDB(self, buffer, functions):
@@ -57,7 +55,6 @@ class DBOperations:
 
         os.makedirs(os.path.dirname(self.csv_path), exist_ok=True)
         with open(self.csv_path, "w", newline="") as file:
-            # Cambiado a QUOTE_ALL para proteger comas
             writer = csv.writer(file, quoting=csv.QUOTE_ALL)
 
             # ips y resultados
@@ -65,6 +62,6 @@ class DBOperations:
                 row = [user_ip] + data.get("results", [])
                 writer.writerow(row)
 
-            # functions - Guardamos cada función como una celda separada
+            # functions - cada funcion como una celda separada
             if functions:
                 writer.writerow(["functions"] + list(functions))

@@ -342,19 +342,23 @@ class NetworkMonitorApp(ctk.CTk):
         self.scenarios_ax.clear()
         self.scenarios_ax.set_facecolor('#1E1E1E')
         if len(self.scenarios_history) > 0:
+            x_positions = range(len(self.scenarios_history))
             self.scenarios_ax.plot(
-                list(self.time_labels),
+                x_positions,
                 list(self.scenarios_history),
                 color='#2ECC71',
                 linewidth=2,
                 marker='o'
             )
             self.scenarios_ax.fill_between(
-                range(len(self.scenarios_history)),
+                x_positions,
                 self.scenarios_history,
                 alpha=0.3,
                 color='#2ECC71'
             )
+            # Configurar las etiquetas del eje X correctamente
+            self.scenarios_ax.set_xticks(x_positions)
+            self.scenarios_ax.set_xticklabels(list(self.time_labels), rotation=45, ha='right')
         self.scenarios_ax.set_xlabel('Tiempo', color='white')
         self.scenarios_ax.set_ylabel('Número de Escenarios', color='white')
         self.scenarios_ax.set_ylim(bottom=0)
