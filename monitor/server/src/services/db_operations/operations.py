@@ -1,6 +1,7 @@
-import os
 import csv
-from typing import Tuple, Dict, List
+import os
+import re
+from typing import Dict, List, Tuple
 
 
 class DBOperations:
@@ -28,8 +29,13 @@ class DBOperations:
 
                     # functions
                     if key == "functions":
-                        # Las funciones están en el resto de las columnas
-                        published_functions = [f.strip().strip('"') for f in row[1:] if f.strip()]
+                        functions_str = ",".join(row[1:])
+                        # Buscamos patrones como "f(...)" para identificar cada funcion
+                        # Este regex captura funciones completas como f(x)=...,
+                        func_pattern = r"(f\([^)]+\)=[^,]+(?:,[a-z]+)?)"
+                        matches = re.findall(func_pattern, functions_str)
+                        if matches:
+                            published_functions = [m.strip() for m in matches]
                         continue
 
                     # ips y resultados
@@ -51,13 +57,14 @@ class DBOperations:
 
         os.makedirs(os.path.dirname(self.csv_path), exist_ok=True)
         with open(self.csv_path, "w", newline="") as file:
-            writer = csv.writer(file, quoting=csv.QUOTE_MINIMAL)
+            # Cambiado a QUOTE_ALL para proteger comas
+            writer = csv.writer(file, quoting=csv.QUOTE_ALL)
 
             # ips y resultados
             for user_ip, data in buffer.items():
                 row = [user_ip] + data.get("results", [])
                 writer.writerow(row)
 
-            # functions
+            # functions - Guardamos cada función como una celda separada
             if functions:
                 writer.writerow(["functions"] + list(functions))

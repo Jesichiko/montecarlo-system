@@ -26,7 +26,7 @@ class NetworkMonitorApp(ctk.CTk):
         self.monitoring = False
         self.monitor_thread = None
         self.user_results_data = {}
-        self.published_functions = set()  # Cambio a set para evitar duplicados
+        self.published_functions = set()
         self.total_scenarios = 0
         self.connection_error = False
 
@@ -357,7 +357,6 @@ class NetworkMonitorApp(ctk.CTk):
             )
         self.scenarios_ax.set_xlabel('Tiempo', color='white')
         self.scenarios_ax.set_ylabel('Número de Escenarios', color='white')
-        # Asegurar que el eje Y comience en 0
         self.scenarios_ax.set_ylim(bottom=0)
         self.scenarios_ax.grid(True, alpha=0.1, color='white')
         self.scenarios_canvas.draw()
@@ -384,7 +383,7 @@ class NetworkMonitorApp(ctk.CTk):
         self.users_ax.grid(True, alpha=0.1, color='white', axis='y')
         self.users_canvas.draw()
 
-        # Grafica 3: Promedio global (solo actualiza si hay cambios reales)
+        # Grafica 3: Promedio global
         self.average_ax.clear()
         self.average_ax.set_facecolor('#1E1E1E')
         if len(self.global_average_history) > 0:
@@ -407,6 +406,12 @@ class NetworkMonitorApp(ctk.CTk):
 
     def update_cards(self):
         if self.connection_error:
+            # Limpiar cards existentes
+            for card in self.client_cards.values():
+                card.destroy()
+            self.client_cards.clear()
+            self.card_order.clear()
+            
             error_label = ctk.CTkLabel(
                 self.cards_container,
                 text="Error de conexion con el servidor\n\nNo se pueden obtener los resultados",
@@ -453,9 +458,8 @@ class NetworkMonitorApp(ctk.CTk):
                 self.client_cards[ip_address] = new_card
 
     def update_functions_display(self):
-        # Solo agregar funciones nuevas, no eliminar las existentes
         if not self.published_functions:
-            if not self.function_widgets:  # Solo mostrar mensaje si no hay funciones
+            if not self.function_widgets:
                 no_func_label = ctk.CTkLabel(
                     self.functions_scroll,
                     text="No hay funciones disponibles",
@@ -465,12 +469,10 @@ class NetworkMonitorApp(ctk.CTk):
                 no_func_label.pack(pady=20)
                 self.function_widgets["_empty_"] = no_func_label
         else:
-            # Eliminar mensaje de "no hay funciones" si existe
             if "_empty_" in self.function_widgets:
                 self.function_widgets["_empty_"].destroy()
                 del self.function_widgets["_empty_"]
             
-            # Agregar solo funciones nuevas
             for func in self.published_functions:
                 if func not in self.function_widgets:
                     func_frame = ctk.CTkFrame(
@@ -521,26 +523,21 @@ class NetworkMonitorApp(ctk.CTk):
 
                     response = stub.GetInformation(empty_pb2.Empty())
                     
-                    # Actualizar resultados de usuarios
                     new_data = {}
                     for ip_address, result_list in response.user_results.items():
                         new_data[ip_address] = {"values": list(result_list.values)}
 
                     self.user_results_data = new_data
                     
-                    # Actualizar funciones publicadas (agregar a set)
                     for func in response.published_functions:
                         self.published_functions.add(func)
                     
-                    # Actualizar total de escenarios
                     self.total_scenarios = response.total_scenarios
                     
-                    # Actualizar historico para graficas
                     current_time = datetime.now().strftime("%H:%M")
                     self.time_labels.append(current_time)
                     self.scenarios_history.append(self.total_scenarios)
                     
-                    # Calcular promedio global actual
                     if self.user_results_data:
                         all_values = []
                         for data in self.user_results_data.values():
@@ -552,42 +549,34 @@ class NetworkMonitorApp(ctk.CTk):
                     
                     self.connection_error = False
                     
-                    # Actualizar UI
                     self.after(0, self.update_cards)
                     self.after(0, self.update_functions_display)
                     self.after(0, lambda: self.scenarios_label.configure(text=str(self.total_scenarios)))
                     self.after(0, self.update_charts)
 
             except grpc.RpcError as e:
-                print(f"Error gRPC: {e}")
+                print(f"Error gRPC: {e.code()} - {e.details()}")
                 self.connection_error = True
                 self.monitoring = False
 
-                error_msg = (
-                    f"No se puede conectar al servidor gRPC en {server_address}\n\n"
-                )
+                error_msg = f"No se puede conectar al servidor gRPC en {server_address}\n\n"
 
                 if e.code() == grpc.StatusCode.UNAVAILABLE:
-                    error_msg += "El servidor no esta disponible o no esta ejecutandose"
+                    error_msg += "El servidor no esta disponible o no esta ejecutandose."
                 elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
-                    error_msg += "Tiempo de espera agotado al conectar"
+                    error_msg += "Tiempo de espera agotado al conectar."
+                elif e.code() == grpc.StatusCode.UNIMPLEMENTED:
+                    error_msg += "El servidor no implementa el servicio solicitado.\n\nVerifica que el servidor correcto esté ejecutándose."
                 else:
                     error_msg += f"Error: {e.details()}"
 
                 self.after(0, self.update_cards)
-                self.after(
-                    0,
-                    lambda: self.show_error_dialog("Error de Conexion gRPC", error_msg),
-                )
-
-                self.after(
-                    0,
-                    lambda: self.monitor_button.configure(
-                        text="Iniciar Monitoreo",
-                        fg_color="#2ECC71",
-                        hover_color="#27AE60",
-                    ),
-                )
+                self.after(0, lambda: self.show_error_dialog("Error de Conexion gRPC", error_msg))
+                self.after(0, lambda: self.monitor_button.configure(
+                    text="Iniciar Monitoreo",
+                    fg_color="#2ECC71",
+                    hover_color="#27AE60",
+                ))
                 break
 
             except Exception as e:
@@ -596,20 +585,12 @@ class NetworkMonitorApp(ctk.CTk):
                 self.monitoring = False
 
                 self.after(0, self.update_cards)
-                self.after(
-                    0,
-                    lambda err=e: self.show_error_dialog(
-                        "Error Inesperado", f"{str(err)}"
-                    ),
-                )
-                self.after(
-                    0,
-                    lambda: self.monitor_button.configure(
-                        text="Iniciar Monitoreo",
-                        fg_color="#2ECC71",
-                        hover_color="#27AE60",
-                    ),
-                )
+                self.after(0, lambda err=e: self.show_error_dialog("Error Inesperado", f"{str(err)}"))
+                self.after(0, lambda: self.monitor_button.configure(
+                    text="Iniciar Monitoreo",
+                    fg_color="#2ECC71",
+                    hover_color="#27AE60",
+                ))
                 break
 
             threading.Event().wait(1)
