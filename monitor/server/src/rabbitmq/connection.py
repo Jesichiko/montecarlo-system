@@ -19,7 +19,8 @@ class Connection:
         self.channel.queue_declare(queue="results", durable=True)
         self.channel.queue_declare(queue="scenarios", durable=False)
         self.channel.queue_declare(queue="functions", durable=True)
-        # bindeamos cola functions con el exchange fanout
+
+        # Bindeamos cola functions con el exchange fanout
         self.channel.exchange_declare(
             exchange="exchange.models", exchange_type="fanout", durable=True
         )
@@ -36,18 +37,18 @@ class Connection:
             if method_frame is None:  # cola vacia
                 break
 
-                # Procesar y confirmar inmediatamente
-                data = json.loads(body.decode())
-                messages.append(data)
-                self.channel.basic_ack(method_frame.delivery_tag)
+            # Procesar y confirmar inmediatamente
+            data = json.loads(body.decode())
+            messages.append(data)
+            self.channel.basic_ack(method_frame.delivery_tag)
 
         return messages
 
-    # definimos un iterador consumer de pika que devuelve constantemente
+    # Definimos un iterador consumer de pika que devuelve constantemente
     # mensajes empujados por el broker rabbitmq
     # como un "flujo" constante de mensajes
     def message_stream(self, consume_queue: str) -> dict | None:
-        # si todavia no hay conexion o canal no se puede comunicar
+        # Si todavía no hay conexión o canal no se puede comunicar
         if self.connection is None or self.channel is None:
             return None
 
@@ -59,8 +60,10 @@ class Connection:
             self.channel.basic_ack(method.delivery_tag)
 
     def get_amount_scenarios(self) -> int:
-        res = self.channel.queue_declare(queue="scenarios", durable=False, passive=True)
-        return res.method.message_count
+        res = self.channel.queue_declare(queue="scenarios", passive=True)
+        count = res.method.message_count
+        print(f"Escenarios en cola: {count}")
+        return count
 
     def close_connection(self):
         self.connection.close()

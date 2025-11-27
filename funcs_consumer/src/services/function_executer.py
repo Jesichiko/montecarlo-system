@@ -13,22 +13,31 @@ operators = {
 }
 
 def safe_eval(expr, variables):
+    # reemplazamos ^ con ** para potencia antes de parsear
+    expr = expr.replace('^', '**')
     tree = ast.parse(expr, mode="eval")
 
     def _eval(node):
         if isinstance(node, ast.Expression):
             return _eval(node.body)
         elif isinstance(node, ast.Name):
+            if node.id not in variables:
+                raise ValueError(f"Variable '{node.id}' no encontrada")
             return variables[node.id]
         elif isinstance(node, ast.Constant):
             return node.value
         elif isinstance(node, ast.BinOp):
-            return operators[type(node.op)](_eval(node.left), _eval(node.right))
+            op_type = type(node.op)
+            if op_type not in operators:
+                raise ValueError(f"Operador {op_type.__name__} no permitido")
+            return operators[op_type](_eval(node.left), _eval(node.right))
         elif isinstance(node, ast.UnaryOp):
-            return operators[type(node.op)](_eval(node.operand))
+            op_type = type(node.op)
+            if op_type not in operators:
+                raise ValueError(f"Operador unario {op_type.__name__} no permitido")
+            return operators[op_type](_eval(node.operand))
         else:
-            print(f"Operacion {node} no permitida")
-            return None
+            raise ValueError(f"Nodo {type(node).__name__} no permitido")
 
     return _eval(tree)
 
@@ -40,9 +49,8 @@ class FunctionExecuter:
 
         if len(variables) != len(scenario):
             print(
-                f"Error: Tamaño de variables ({
-                    len(variables)
-                }) no coincide con el tamaño de escenario ({len(scenario)})."
+                f"Error: Tamaño de variables ({len(variables)}) "
+                f"no coincide con el tamaño de escenario ({len(scenario)})."
             )
             print(f"Variables: {variables}, Scenario: {scenario}")
             return None
@@ -50,7 +58,10 @@ class FunctionExecuter:
         local_scope = dict(zip(variables, scenario))
 
         try:
-            return safe_eval(expression, local_scope)
+            result = safe_eval(expression, local_scope)
+            return result
         except Exception as e:
-            print(f"Error: {e}\nExpresion:({expression})\nVariables:{local_scope}")
+            print(f"Error evaluando expresion: {e}")
+            print(f"Expresion: {expression}")
+            print(f"Variables: {local_scope}")
             return None

@@ -18,9 +18,19 @@ class Connection:
         self.connection = pika.BlockingConnection(parameters=params)
         self.channel = self.connection.channel()
         self._user_models_queue = f"{self._get_ip_address()}.models"
+
+        # fair dispatch para todos los clientes
+        # self.channel.basic_qos(prefetch_count=1)
+
         self.channel.queue_declare(queue="results", durable=True)
         self.channel.queue_declare(queue="scenarios", durable=False)
-        self.channel.queue_declare(queue=self._user_models_queue)
+
+        # Cola de modelos del usuario con tamaño maximo = 1
+        self.channel.queue_declare(
+            queue=self._user_models_queue, durable=False, arguments={"x-max-length": 1}
+        )
+
+        # Exchange fanout para modelos
         self.channel.exchange_declare(
             exchange="exchange.models", exchange_type="fanout", durable=True
         )
@@ -30,10 +40,8 @@ class Connection:
 
     # funcion para poder saber nuestra ip (ya que es necesaria para identificar
     # nuestra participacion ante el monitor)
-
     def _get_ip_address(self):
         try:
-            # abrimos un socket, tomamos nuestra ip y cerramos socket
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
             ip = s.getsockname()[0]
@@ -58,10 +66,10 @@ class Connection:
             yield data
             self.channel.basic_ack(method.delivery_tag)
 
-    def publish_result(self, result: int):
+    def publish_result(self, result: float):
         final_result = {"user": self._get_ip_address(), "result": result}
-        result_json = final_result.dumps(final_result)
-        # publicamos el mensaje
+        result_json = json.dumps(final_result)
+
         self.channel.basic_publish(
             exchange="",
             routing_key="results",

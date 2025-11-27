@@ -1,3 +1,5 @@
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import os
 import threading
 from collections import deque
@@ -9,9 +11,9 @@ from google.protobuf import empty_pb2
 from shared_lib.protos import information_service_pb2_grpc
 from src.client_card import ClientCard
 import matplotlib
-matplotlib.use('TkAgg')
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
+
+matplotlib.use("TkAgg")
+
 
 class NetworkMonitorApp(ctk.CTk):
     def __init__(self):
@@ -38,7 +40,7 @@ class NetworkMonitorApp(ctk.CTk):
         self.scenarios_history = deque(maxlen=20)
         self.time_labels = deque(maxlen=20)
         self.global_average_history = deque(maxlen=20)
-        
+
         # Variables de entorno
         load_dotenv()
 
@@ -64,14 +66,13 @@ class NetworkMonitorApp(ctk.CTk):
         content_frame = ctk.CTkFrame(dialog, fg_color="transparent")
         content_frame.pack(fill="both", expand=True, padx=30, pady=30)
 
-        # Texto con wrapping adecuado
         message_label = ctk.CTkLabel(
             content_frame,
             text=message,
             font=("Roboto", 13),
             text_color="#F5F5F5",
             wraplength=440,
-            justify="left"
+            justify="left",
         )
         message_label.pack(pady=(0, 20), fill="both", expand=True)
 
@@ -127,10 +128,10 @@ class NetworkMonitorApp(ctk.CTk):
 
         # Seccion 1: Cards de usuarios
         self.create_user_cards_section()
-        
+
         # Seccion 2: Informacion de funciones y escenarios
         self.create_functions_section()
-        
+
         # Seccion 3: Graficas
         self.create_charts_section()
 
@@ -144,9 +145,11 @@ class NetworkMonitorApp(ctk.CTk):
         section_title.pack(anchor="w", padx=10, pady=(20, 10))
 
         # Frame para las cards (grid de 4 columnas)
-        self.cards_container = ctk.CTkFrame(self.scrollable_frame, fg_color="transparent")
+        self.cards_container = ctk.CTkFrame(
+            self.scrollable_frame, fg_color="transparent"
+        )
         self.cards_container.pack(fill="both", expand=True, padx=10, pady=10)
-        
+
         for i in range(4):
             self.cards_container.grid_columnconfigure(i, weight=1)
 
@@ -170,7 +173,7 @@ class NetworkMonitorApp(ctk.CTk):
             fg_color="#2A2A2A",
             corner_radius=12,
             border_width=1,
-            border_color="#3A3A3A"
+            border_color="#3A3A3A",
         )
         functions_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
 
@@ -188,7 +191,7 @@ class NetworkMonitorApp(ctk.CTk):
             height=250,
         )
         self.functions_scroll.pack(fill="both", expand=True, padx=20, pady=(0, 20))
-        
+
         # Diccionario para rastrear widgets de funciones
         self.function_widgets = {}
 
@@ -198,7 +201,7 @@ class NetworkMonitorApp(ctk.CTk):
             fg_color="#2A2A2A",
             corner_radius=12,
             border_width=1,
-            border_color="#3A3A3A"
+            border_color="#3A3A3A",
         )
         scenarios_panel.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
 
@@ -244,7 +247,7 @@ class NetworkMonitorApp(ctk.CTk):
             fg_color="#2A2A2A",
             corner_radius=12,
             border_width=1,
-            border_color="#3A3A3A"
+            border_color="#3A3A3A",
         )
         chart1_frame.grid(row=0, column=0, columnspan=2, sticky="nsew", pady=(0, 20))
 
@@ -263,7 +266,7 @@ class NetworkMonitorApp(ctk.CTk):
             fg_color="#2A2A2A",
             corner_radius=12,
             border_width=1,
-            border_color="#3A3A3A"
+            border_color="#3A3A3A",
         )
         chart2_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 10))
 
@@ -282,7 +285,7 @@ class NetworkMonitorApp(ctk.CTk):
             fg_color="#2A2A2A",
             corner_radius=12,
             border_width=1,
-            border_color="#3A3A3A"
+            border_color="#3A3A3A",
         )
         chart3_frame.grid(row=1, column=1, sticky="nsew", padx=(10, 0))
 
@@ -296,43 +299,43 @@ class NetworkMonitorApp(ctk.CTk):
         self.create_average_chart(chart3_frame)
 
     def create_scenarios_chart(self, parent):
-        fig = Figure(figsize=(12, 4), facecolor='#2A2A2A')
+        fig = Figure(figsize=(12, 4), facecolor="#2A2A2A")
         self.scenarios_ax = fig.add_subplot(111)
-        self.scenarios_ax.set_facecolor('#1E1E1E')
-        self.scenarios_ax.tick_params(colors='white')
-        self.scenarios_ax.spines['bottom'].set_color('#3A3A3A')
-        self.scenarios_ax.spines['top'].set_color('#3A3A3A')
-        self.scenarios_ax.spines['left'].set_color('#3A3A3A')
-        self.scenarios_ax.spines['right'].set_color('#3A3A3A')
-        
+        self.scenarios_ax.set_facecolor("#1E1E1E")
+        self.scenarios_ax.tick_params(colors="white")
+        self.scenarios_ax.spines["bottom"].set_color("#3A3A3A")
+        self.scenarios_ax.spines["top"].set_color("#3A3A3A")
+        self.scenarios_ax.spines["left"].set_color("#3A3A3A")
+        self.scenarios_ax.spines["right"].set_color("#3A3A3A")
+
         canvas = FigureCanvasTkAgg(fig, parent)
         canvas.get_tk_widget().pack(fill="both", expand=True, padx=20, pady=(0, 20))
         self.scenarios_canvas = canvas
 
     def create_users_chart(self, parent):
-        fig = Figure(figsize=(6, 4), facecolor='#2A2A2A')
+        fig = Figure(figsize=(6, 4), facecolor="#2A2A2A")
         self.users_ax = fig.add_subplot(111)
-        self.users_ax.set_facecolor('#1E1E1E')
-        self.users_ax.tick_params(colors='white')
-        self.users_ax.spines['bottom'].set_color('#3A3A3A')
-        self.users_ax.spines['top'].set_color('#3A3A3A')
-        self.users_ax.spines['left'].set_color('#3A3A3A')
-        self.users_ax.spines['right'].set_color('#3A3A3A')
-        
+        self.users_ax.set_facecolor("#1E1E1E")
+        self.users_ax.tick_params(colors="white")
+        self.users_ax.spines["bottom"].set_color("#3A3A3A")
+        self.users_ax.spines["top"].set_color("#3A3A3A")
+        self.users_ax.spines["left"].set_color("#3A3A3A")
+        self.users_ax.spines["right"].set_color("#3A3A3A")
+
         canvas = FigureCanvasTkAgg(fig, parent)
         canvas.get_tk_widget().pack(fill="both", expand=True, padx=20, pady=(0, 20))
         self.users_canvas = canvas
 
     def create_average_chart(self, parent):
-        fig = Figure(figsize=(6, 4), facecolor='#2A2A2A')
+        fig = Figure(figsize=(6, 4), facecolor="#2A2A2A")
         self.average_ax = fig.add_subplot(111)
-        self.average_ax.set_facecolor('#1E1E1E')
-        self.average_ax.tick_params(colors='white')
-        self.average_ax.spines['bottom'].set_color('#3A3A3A')
-        self.average_ax.spines['top'].set_color('#3A3A3A')
-        self.average_ax.spines['left'].set_color('#3A3A3A')
-        self.average_ax.spines['right'].set_color('#3A3A3A')
-        
+        self.average_ax.set_facecolor("#1E1E1E")
+        self.average_ax.tick_params(colors="white")
+        self.average_ax.spines["bottom"].set_color("#3A3A3A")
+        self.average_ax.spines["top"].set_color("#3A3A3A")
+        self.average_ax.spines["left"].set_color("#3A3A3A")
+        self.average_ax.spines["right"].set_color("#3A3A3A")
+
         canvas = FigureCanvasTkAgg(fig, parent)
         canvas.get_tk_widget().pack(fill="both", expand=True, padx=20, pady=(0, 20))
         self.average_canvas = canvas
@@ -340,67 +343,65 @@ class NetworkMonitorApp(ctk.CTk):
     def update_charts(self):
         # Grafica 1: Escenarios en el tiempo
         self.scenarios_ax.clear()
-        self.scenarios_ax.set_facecolor('#1E1E1E')
+        self.scenarios_ax.set_facecolor("#1E1E1E")
         if len(self.scenarios_history) > 0:
             x_positions = range(len(self.scenarios_history))
             self.scenarios_ax.plot(
                 x_positions,
                 list(self.scenarios_history),
-                color='#2ECC71',
+                color="#2ECC71",
                 linewidth=2,
-                marker='o'
+                marker="o",
             )
             self.scenarios_ax.fill_between(
-                x_positions,
-                self.scenarios_history,
-                alpha=0.3,
-                color='#2ECC71'
+                x_positions, self.scenarios_history, alpha=0.3, color="#2ECC71"
             )
-            # Configurar las etiquetas del eje X correctamente
             self.scenarios_ax.set_xticks(x_positions)
-            self.scenarios_ax.set_xticklabels(list(self.time_labels), rotation=45, ha='right')
-        self.scenarios_ax.set_xlabel('Tiempo', color='white')
-        self.scenarios_ax.set_ylabel('Número de Escenarios', color='white')
+            self.scenarios_ax.set_xticklabels(
+                list(self.time_labels), rotation=45, ha="right"
+            )
+        self.scenarios_ax.set_xlabel("Tiempo", color="white")
+        self.scenarios_ax.set_ylabel("Número de Escenarios", color="white")
         self.scenarios_ax.set_ylim(bottom=0)
-        self.scenarios_ax.grid(True, alpha=0.1, color='white')
+        self.scenarios_ax.grid(True, alpha=0.1, color="white")
         self.scenarios_canvas.draw()
 
         # Grafica 2: Comparativa por usuario
         self.users_ax.clear()
-        self.users_ax.set_facecolor('#1E1E1E')
+        self.users_ax.set_facecolor("#1E1E1E")
         if self.user_results_data:
-            colors = ['#2ECC71', '#FF8C00', '#9B59B6', '#F1C40F', '#E74C3C', '#1ABC9C']
+            colors = ["#2ECC71", "#FF8C00", "#9B59B6", "#F1C40F", "#E74C3C", "#1ABC9C"]
             users = list(self.user_results_data.keys())
             counts = [len(data["values"]) for data in self.user_results_data.values()]
-            
+
             x_positions = range(len(users))
             bars = self.users_ax.bar(x_positions, counts, width=0.6)
-            
+
             for i, bar in enumerate(bars):
                 bar.set_color(colors[i % len(colors)])
                 bar.set_alpha(0.7)
-            
+
             self.users_ax.set_xticks(x_positions)
-            self.users_ax.set_xticklabels(users, rotation=45, ha='right', fontsize=8)
-            self.users_ax.set_ylabel('Resultados Brindados', color='white')
-                
-        self.users_ax.grid(True, alpha=0.1, color='white', axis='y')
+            self.users_ax.set_xticklabels(users, rotation=45, ha="right", fontsize=8)
+            self.users_ax.set_ylabel("Resultados Brindados", color="white")
+
+        self.users_ax.grid(True, alpha=0.1, color="white", axis="y")
         self.users_canvas.draw()
 
         # Grafica 3: Promedio global
         self.average_ax.clear()
-        self.average_ax.set_facecolor('#1E1E1E')
+        self.average_ax.set_facecolor("#1E1E1E")
         if len(self.global_average_history) > 0:
             self.average_ax.plot(
                 range(len(self.global_average_history)),
                 list(self.global_average_history),
-                color='#F44725',
+                color="#F44725",
                 linewidth=2,
-                marker='o'
+                marker="o",
             )
-            self.average_ax.set_xlabel('Tiempo', color='white')
-            self.average_ax.set_ylabel('Promedio', color='white')
-            self.average_ax.grid(True, alpha=0.1, color='white')
+            self.average_ax.set_xlabel("Tiempo", color="white")
+            self.average_ax.set_ylabel("Promedio", color="white")
+            self.average_ax.grid(True, alpha=0.1, color="white")
         self.average_canvas.draw()
 
     def create_card(self, ip_address, ports, color, row, col):
@@ -410,7 +411,6 @@ class NetworkMonitorApp(ctk.CTk):
 
     def update_cards(self):
         if self.connection_error:
-            # Limpiar cards existentes
             for card in self.client_cards.values():
                 card.destroy()
             self.client_cards.clear()
@@ -419,7 +419,7 @@ class NetworkMonitorApp(ctk.CTk):
 
         colors = ["#2ECC71", "#FF8C00", "#9B59B6", "#F1C40F", "#E74C3C", "#1ABC9C"]
         for idx, (ip_address, data) in enumerate(self.user_results_data.items()):
-            ports = [int(val) for val in data.get("values", [])]
+            ports = [float(val) for val in data.get("values", [])]
 
             if ip_address in self.client_cards:
                 card = self.client_cards[ip_address]
@@ -454,19 +454,20 @@ class NetworkMonitorApp(ctk.CTk):
 
     def update_functions_display(self):
         if not self.published_functions:
-            no_func_label = ctk.CTkLabel(
-                self.functions_scroll,
-                text="No hay funciones disponibles",
-                font=ctk.CTkFont(size=12),
-                text_color="#888888",
-            )
-            no_func_label.pack(pady=20)
-            self.function_widgets["_empty_"] = no_func_label
+            if "_empty_" not in self.function_widgets:
+                no_func_label = ctk.CTkLabel(
+                    self.functions_scroll,
+                    text="No hay funciones disponibles",
+                    font=ctk.CTkFont(size=12),
+                    text_color="#888888",
+                )
+                no_func_label.pack(pady=20)
+                self.function_widgets["_empty_"] = no_func_label
         else:
             if "_empty_" in self.function_widgets:
                 self.function_widgets["_empty_"].destroy()
                 del self.function_widgets["_empty_"]
-            
+
             for func in self.published_functions:
                 if func not in self.function_widgets:
                     func_frame = ctk.CTkFrame(
@@ -482,7 +483,7 @@ class NetworkMonitorApp(ctk.CTk):
                         font=ctk.CTkFont(size=13),
                         text_color="#CCCCCC",
                     ).pack(padx=15, pady=12)
-                    
+
                     self.function_widgets[func] = func_frame
 
     def toggle_monitoring(self):
@@ -514,88 +515,107 @@ class NetworkMonitorApp(ctk.CTk):
             try:
                 with grpc.insecure_channel(server_address) as channel:
                     stub = information_service_pb2_grpc.InformationServiceStub(channel)
-
                     response = stub.GetInformation(empty_pb2.Empty())
-                    
+
+                    # Actualizar datos de usuarios
                     new_data = {}
                     for ip_address, result_list in response.user_results.items():
                         new_data[ip_address] = {"values": list(result_list.values)}
-
                     self.user_results_data = new_data
-                    
+
+                    # Actualizar funciones
                     for func in response.published_functions:
                         self.published_functions.add(func)
-                    
+
+                    # CRÍTICO: Actualizar total de escenarios
                     self.total_scenarios = response.total_scenarios
-                    
+
+                    # Agregar datos históricos
                     current_time = datetime.now().strftime("%H:%M")
                     self.time_labels.append(current_time)
                     self.scenarios_history.append(self.total_scenarios)
-                    
+
+                    # Calcular promedio global
                     if self.user_results_data:
                         all_values = []
                         for data in self.user_results_data.values():
                             all_values.extend(data["values"])
-                        
+
                         if all_values:
                             current_avg = sum(all_values) / len(all_values)
                             self.global_average_history.append(current_avg)
-                    
+
                     self.connection_error = False
-                    
-                    self.after(0, self.update_cards)
-                    self.after(0, self.update_functions_display)
-                    self.after(0, lambda: self.scenarios_label.configure(text=str(self.total_scenarios)))
-                    self.after(0, self.update_charts)
+
+                    # Actualizar UI - TODAS LAS LLAMADAS JUNTAS
+                    self.after(0, self.update_all_ui)
 
             except grpc.RpcError as e:
                 self.monitoring = False
-                self.connection_error = True 
+                self.connection_error = True
 
-                # limpiamos funciones publicadas, graficas y cards
                 self.time_labels.clear()
                 self.published_functions.clear()
                 self.global_average_history.clear()
                 self.scenarios_history.clear()
                 self.user_results_data = {}
+                self.total_scenarios = 0
 
-                error_msg = f"No se puede conectar al servidor gRPC en {server_address}\n\n"
+                error_msg = (
+                    f"No se puede conectar al servidor gRPC en {server_address}\n\n"
+                )
                 if e.code() == grpc.StatusCode.UNAVAILABLE:
                     error_msg += "El servidor no esta disponible o no esta ejecutandose"
                 elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
                     error_msg += "Tiempo de espera agotado al conectar"
                 elif e.code() == grpc.StatusCode.UNIMPLEMENTED:
-                    error_msg += "El servidor no implementa el servicio solicitado\n\nVerifica que el servidor correcto este ejecuaandose"
+                    error_msg += "El servidor no implementa el servicio solicitado"
                 else:
                     error_msg += f"Error: {e.details()}"
-                
-                # actualizamos UI
-                self.after(0, self.update_cards)
-                self.after(0, self.update_charts)
-                self.after(0, self.update_functions_display)
-                self.after(0, lambda: self.show_error_dialog("Error de Conexion gRPC", error_msg))
-                self.after(0, lambda: self.monitor_button.configure(
-                    text="Iniciar Monitoreo",
-                    fg_color="#2ECC71",
-                    hover_color="#27AE60",
-                ))
-                self.after(0, lambda: self.scenarios_label.configure(text=str(0)))
+
+                self.after(
+                    0,
+                    lambda: self.show_error_dialog("Error de Conexion gRPC", error_msg),
+                )
+                self.after(0, self.update_all_ui)
+                self.after(
+                    0,
+                    lambda: self.monitor_button.configure(
+                        text="Iniciar Monitoreo",
+                        fg_color="#2ECC71",
+                        hover_color="#27AE60",
+                    ),
+                )
                 break
 
             except Exception as e:
                 self.connection_error = True
                 self.monitoring = False
 
-                self.after(0, self.update_cards)
-                self.after(0, lambda err=e: self.show_error_dialog("Error Inesperado", f"{str(err)}"))
-                self.after(0, lambda: self.monitor_button.configure(
-                    text="Iniciar Monitoreo",
-                    fg_color="#2ECC71",
-                    hover_color="#27AE60",
-                ))
+                self.after(
+                    0,
+                    lambda err=e: self.show_error_dialog(
+                        "Error Inesperado", f"{str(err)}"
+                    ),
+                )
+                self.after(
+                    0,
+                    lambda: self.monitor_button.configure(
+                        text="Iniciar Monitoreo",
+                        fg_color="#2ECC71",
+                        hover_color="#27AE60",
+                    ),
+                )
                 break
 
             threading.Event().wait(1)
+
+    def update_all_ui(self):
+        """Actualiza todos los elementos de la UI en una sola llamada"""
+        self.update_cards()
+        self.update_functions_display()
+        self.scenarios_label.configure(text=str(self.total_scenarios))
+        self.update_charts()
 
     def on_closing(self):
         self.stop_monitoring()

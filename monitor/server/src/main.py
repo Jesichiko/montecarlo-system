@@ -40,7 +40,10 @@ def consume_results(ip_results: dict):
 def consume_functions(functions: set):
     connection = Connection()
     for func in connection.message_stream("functions"):
-        if not func or func in functions:
+        if not func:
+            continue
+
+        if func in functions:
             continue
 
         print(f"Funcion recibida: {func}")
@@ -64,11 +67,10 @@ def main():
     load_dotenv()
 
     buffer_results, functions = DBOperations().loadDB()
-    if buffer_results and functions:
+    if buffer_results:
         print("Resultados en cache cargados")
-        pprint(
-            buffer_results,
-        )
+        pprint(buffer_results)
+    if functions:
         print("Funciones:", functions)
 
     # Evento para detener el thread
