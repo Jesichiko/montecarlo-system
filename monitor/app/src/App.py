@@ -26,7 +26,7 @@ class NetworkMonitorApp(ctk.CTk):
         self.monitoring = False
         self.monitor_thread = None
         self.user_results_data = {}
-        self.published_functions = []
+        self.published_functions = set()  # Cambio a set para evitar duplicados
         self.total_scenarios = 0
         self.connection_error = False
 
@@ -37,6 +37,7 @@ class NetworkMonitorApp(ctk.CTk):
         # Datos históricos para graficas
         self.scenarios_history = deque(maxlen=20)
         self.time_labels = deque(maxlen=20)
+        self.global_average_history = deque(maxlen=20)
         
         # Variables de entorno
         load_dotenv()
@@ -47,9 +48,15 @@ class NetworkMonitorApp(ctk.CTk):
     def show_error_dialog(self, title, message):
         dialog = ctk.CTkToplevel(self)
         dialog.title(title)
-        dialog.geometry("450x220")
+        dialog.geometry("500x250")
         dialog.configure(fg_color="#1E1E1E")
         dialog.resizable(False, False)
+
+        # Centrar el dialogo
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (500 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (250 // 2)
+        dialog.geometry(f"500x250+{x}+{y}")
 
         dialog.transient(self)
         dialog.grab_set()
@@ -57,13 +64,16 @@ class NetworkMonitorApp(ctk.CTk):
         content_frame = ctk.CTkFrame(dialog, fg_color="transparent")
         content_frame.pack(fill="both", expand=True, padx=30, pady=30)
 
-        ctk.CTkLabel(
+        # Texto con wrapping adecuado
+        message_label = ctk.CTkLabel(
             content_frame,
             text=message,
             font=("Roboto", 13),
             text_color="#F5F5F5",
-            wraplength=390,
-        ).pack(pady=(0, 20))
+            wraplength=440,
+            justify="left"
+        )
+        message_label.pack(pady=(0, 20), fill="both", expand=True)
 
         ctk.CTkButton(
             content_frame,
@@ -178,6 +188,9 @@ class NetworkMonitorApp(ctk.CTk):
             height=250,
         )
         self.functions_scroll.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        
+        # Diccionario para rastrear widgets de funciones
+        self.function_widgets = {}
 
         # Panel derecho: Total de escenarios
         scenarios_panel = ctk.CTkFrame(
@@ -344,48 +357,47 @@ class NetworkMonitorApp(ctk.CTk):
             )
         self.scenarios_ax.set_xlabel('Tiempo', color='white')
         self.scenarios_ax.set_ylabel('Número de Escenarios', color='white')
+        # Asegurar que el eje Y comience en 0
+        self.scenarios_ax.set_ylim(bottom=0)
         self.scenarios_ax.grid(True, alpha=0.1, color='white')
         self.scenarios_canvas.draw()
 
-        # Grafica 2: Comparativa por usuario
+        # Grafica 2: Comparativa por usuario (barras verticales)
         self.users_ax.clear()
         self.users_ax.set_facecolor('#1E1E1E')
         if self.user_results_data:
             colors = ['#2ECC71', '#FF8C00', '#9B59B6', '#F1C40F', '#E74C3C', '#1ABC9C']
             users = list(self.user_results_data.keys())
             counts = [len(data["values"]) for data in self.user_results_data.values()]
-            bars = self.users_ax.barh(users, counts)
+            
+            x_positions = range(len(users))
+            bars = self.users_ax.bar(x_positions, counts, width=0.6)
             
             for i, bar in enumerate(bars):
                 bar.set_color(colors[i % len(colors)])
                 bar.set_alpha(0.7)
+            
+            self.users_ax.set_xticks(x_positions)
+            self.users_ax.set_xticklabels(users, rotation=45, ha='right', fontsize=8)
+            self.users_ax.set_ylabel('Resultados Brindados', color='white')
                 
-        self.users_ax.set_xlabel('Resultados Brindados', color='white')
-        self.users_ax.grid(True, alpha=0.1, color='white', axis='x')
+        self.users_ax.grid(True, alpha=0.1, color='white', axis='y')
         self.users_canvas.draw()
 
-        # Grafica 3: Promedio global
+        # Grafica 3: Promedio global (solo actualiza si hay cambios reales)
         self.average_ax.clear()
         self.average_ax.set_facecolor('#1E1E1E')
-        if self.user_results_data:
-            all_values = []
-            for data in self.user_results_data.values():
-                all_values.extend(data["values"])
-            
-            if all_values:
-                avg = sum(all_values) / len(all_values)
-                # Simulamos histórico para visualización
-                history = [avg * (1 + (i - 10) * 0.05) for i in range(20)]
-                self.average_ax.plot(
-                    range(len(history)),
-                    history,
-                    color='#F44725',
-                    linewidth=2,
-                    marker='o'
-                )
-        self.average_ax.set_xlabel('Tiempo', color='white')
-        self.average_ax.set_ylabel('Promedio', color='white')
-        self.average_ax.grid(True, alpha=0.1, color='white')
+        if len(self.global_average_history) > 0:
+            self.average_ax.plot(
+                range(len(self.global_average_history)),
+                list(self.global_average_history),
+                color='#F44725',
+                linewidth=2,
+                marker='o'
+            )
+            self.average_ax.set_xlabel('Tiempo', color='white')
+            self.average_ax.set_ylabel('Promedio', color='white')
+            self.average_ax.grid(True, alpha=0.1, color='white')
         self.average_canvas.draw()
 
     def create_card(self, ip_address, ports, color, row, col):
@@ -441,41 +453,41 @@ class NetworkMonitorApp(ctk.CTk):
                 self.client_cards[ip_address] = new_card
 
     def update_functions_display(self):
-        # Limpiar widgets existentes
-        for widget in self.functions_scroll.winfo_children():
-            widget.destroy()
-
+        # Solo agregar funciones nuevas, no eliminar las existentes
         if not self.published_functions:
-            ctk.CTkLabel(
-                self.functions_scroll,
-                text="No hay funciones disponibles",
-                font=ctk.CTkFont(size=12),
-                text_color="#888888",
-            ).pack(pady=20)
-        else:
-            for func in self.published_functions:
-                func_frame = ctk.CTkFrame(
+            if not self.function_widgets:  # Solo mostrar mensaje si no hay funciones
+                no_func_label = ctk.CTkLabel(
                     self.functions_scroll,
-                    fg_color="#1E1E1E",
-                    corner_radius=8,
+                    text="No hay funciones disponibles",
+                    font=ctk.CTkFont(size=12),
+                    text_color="#888888",
                 )
-                func_frame.pack(fill="x", pady=5)
+                no_func_label.pack(pady=20)
+                self.function_widgets["_empty_"] = no_func_label
+        else:
+            # Eliminar mensaje de "no hay funciones" si existe
+            if "_empty_" in self.function_widgets:
+                self.function_widgets["_empty_"].destroy()
+                del self.function_widgets["_empty_"]
+            
+            # Agregar solo funciones nuevas
+            for func in self.published_functions:
+                if func not in self.function_widgets:
+                    func_frame = ctk.CTkFrame(
+                        self.functions_scroll,
+                        fg_color="#1E1E1E",
+                        corner_radius=8,
+                    )
+                    func_frame.pack(fill="x", pady=5)
 
-                ctk.CTkLabel(
-                    func_frame,
-                    text=func,
-                    font=ctk.CTkFont(size=13),
-                    text_color="#CCCCCC",
-                ).pack(side="left", padx=15, pady=12)
-
-                ctk.CTkLabel(
-                    func_frame,
-                    text="Activa",
-                    font=ctk.CTkFont(size=10, weight="bold"),
-                    text_color="#F44725",
-                    fg_color="#F4472533",
-                    corner_radius=4,
-                ).pack(side="right", padx=15, pady=8, ipadx=8, ipady=2)
+                    ctk.CTkLabel(
+                        func_frame,
+                        text=func,
+                        font=ctk.CTkFont(size=13),
+                        text_color="#CCCCCC",
+                    ).pack(padx=15, pady=12)
+                    
+                    self.function_widgets[func] = func_frame
 
     def toggle_monitoring(self):
         if not self.monitoring:
@@ -516,8 +528,9 @@ class NetworkMonitorApp(ctk.CTk):
 
                     self.user_results_data = new_data
                     
-                    # Actualizar funciones publicadas
-                    self.published_functions = list(response.published_functions)
+                    # Actualizar funciones publicadas (agregar a set)
+                    for func in response.published_functions:
+                        self.published_functions.add(func)
                     
                     # Actualizar total de escenarios
                     self.total_scenarios = response.total_scenarios
@@ -526,6 +539,16 @@ class NetworkMonitorApp(ctk.CTk):
                     current_time = datetime.now().strftime("%H:%M")
                     self.time_labels.append(current_time)
                     self.scenarios_history.append(self.total_scenarios)
+                    
+                    # Calcular promedio global actual
+                    if self.user_results_data:
+                        all_values = []
+                        for data in self.user_results_data.values():
+                            all_values.extend(data["values"])
+                        
+                        if all_values:
+                            current_avg = sum(all_values) / len(all_values)
+                            self.global_average_history.append(current_avg)
                     
                     self.connection_error = False
                     
@@ -561,8 +584,8 @@ class NetworkMonitorApp(ctk.CTk):
                     0,
                     lambda: self.monitor_button.configure(
                         text="Iniciar Monitoreo",
-                        fg_color="#E74C3C",
-                        hover_color="#C0392B",
+                        fg_color="#2ECC71",
+                        hover_color="#27AE60",
                     ),
                 )
                 break
@@ -583,8 +606,8 @@ class NetworkMonitorApp(ctk.CTk):
                     0,
                     lambda: self.monitor_button.configure(
                         text="Iniciar Monitoreo",
-                        fg_color="#E74C3C",
-                        hover_color="#C0392B",
+                        fg_color="#2ECC71",
+                        hover_color="#27AE60",
                     ),
                 )
                 break

@@ -8,7 +8,7 @@ class ClientCard(ctk.CTkFrame):
             border_color=color,
             border_width=2,
             corner_radius=12,
-            widith=280,
+            width=280,
             height=400,
         )
         self.ip = ip_address
@@ -36,8 +36,8 @@ class ClientCard(ctk.CTkFrame):
         # lista de widgets CTkLabel (badges)
         self.port_badges = []
 
-        # Footer con estadísticas
-        self.footer_frame = ctk.CTkFrame(self, fg_color="#FFFFFF1A", corner_radius=8)
+        # footer para estadisticas
+        self.footer_frame = ctk.CTkFrame(self, fg_color="#1E1E1E", corner_radius=8)  # Corregido: sin transparencia
         self.footer_frame.pack(fill="x", padx=15, pady=(0, 15))
 
         self.count_label = ctk.CTkLabel(
@@ -76,7 +76,7 @@ class ClientCard(ctk.CTkFrame):
                     text=str(int(values[i])),
                     font=ctk.CTkFont(size=11, weight="bold"),
                     fg_color="#FFFFFF",
-                    text_color="#FFFFFF",
+                    text_color="#1E1E1E",  # Corregido: texto oscuro sobre fondo blanco
                     corner_radius=15,
                     width=60,
                     height=28,

@@ -28,7 +28,8 @@ class DBOperations:
 
                     # functions
                     if key == "functions":
-                        published_functions = [f.strip() for f in row[1:] if f.strip()]
+                        # Las funciones están en el resto de las columnas
+                        published_functions = [f.strip().strip('"') for f in row[1:] if f.strip()]
                         continue
 
                     # ips y resultados
@@ -39,7 +40,8 @@ class DBOperations:
 
                     user_results[key] = {"user": key, "results": results}
 
-        except Exception:
+        except Exception as e:
+            print(f"Error loading DB: {e}")
             return {}, []
         return user_results, published_functions
 
@@ -49,7 +51,7 @@ class DBOperations:
 
         os.makedirs(os.path.dirname(self.csv_path), exist_ok=True)
         with open(self.csv_path, "w", newline="") as file:
-            writer = csv.writer(file)
+            writer = csv.writer(file, quoting=csv.QUOTE_MINIMAL)
 
             # ips y resultados
             for user_ip, data in buffer.items():
@@ -58,4 +60,4 @@ class DBOperations:
 
             # functions
             if functions:
-                writer.writerow(["functions"] + functions)
+                writer.writerow(["functions"] + list(functions))
