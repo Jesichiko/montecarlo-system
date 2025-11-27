@@ -17,6 +17,10 @@ class Connection:
         self.connection = pika.BlockingConnection(parameters=params)
         self.channel = self.connection.channel()
         self.channel.queue_declare(queue="results", durable=True)
+        self.channel.queue_declare(queue="scenarios", durable=False)
+        self.channel.queue_declare(queue="functions", durable=True)
+        # bindeamos cola functions con el exchange fanout
+        self.channel.queue_bind(queue="functions", exchange="exchange.models")
 
     # definimos un iterador consumer de pika que devuelve constantemente
     # mensajes empujados por el broker rabbitmq
@@ -32,6 +36,10 @@ class Connection:
             data = json.loads(body.decode())
             yield data
             self.channel.basic_ack(method.delivery_tag)
+
+    def get_amount_scenarios(self) -> int:
+        res = self.channel.queue_declare(queue="scenarios", durable=False, passive=True)
+        return res.method.message_count
 
     def close_connection(self):
         self.connection.close()

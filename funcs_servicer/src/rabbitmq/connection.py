@@ -11,24 +11,25 @@ class Connection:
             os.getenv("RABBIT_USER"), os.getenv("RABBIT_PWD")
         )
         params = pika.ConnectionParameters(
-            host=os.getenv("RABBIT_HOST"), 
-            credentials=credentials
+            host=os.getenv("RABBIT_HOST"), credentials=credentials
         )
         self.connection = pika.BlockingConnection(parameters=params)
         self.channel = self.connection.channel()
-        self.channel.queue_declare(queue="functions", durable=True)
+        # cola de escenarios
         self.channel.queue_declare(queue="scenarios", durable=False)
+        # exchange para publicar funciones (fanout)
+        self.channel.exchange_declare(
+            exchange="exchange.models", exchange_type="fanout", durable=True
+        )
 
     def public_function(self, function: str):
-        # eliminamos la anterior funcion que habia en cola 
         function_json = json.dumps(function)
-        self.channel.queue_purge(queue="functions")
-        self.channel.basic_publish(
-            exchange="",
-            routing_key="functions",
+        self.channel.basic_publish(  # todos los clientes con colas enlazadas recibiran el mensaje
+            exchange="exchange.models",
+            routing_key="",  # fanout ignora routing_key
             body=function_json,
-            properties=pika.BasicProperties(delivery_mode=2),
         )
+
         # eliminamos todos los escenarios al publicar una nueva func
         self.channel.queue_purge(queue="scenarios")
 

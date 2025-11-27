@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+service InformationService {
+  rpc GetInformation(google.protobuf.Empty) returns (GetInformationResponse);
+}
+
+message GetInformationResponse {
+  map<string, ResultList> user_results = 1;
+  repeated string published_functions = 2;
+  int32 total_scenarios = 3;
+}
+
+message ResultList {
+  repeated double values = 1;
+}

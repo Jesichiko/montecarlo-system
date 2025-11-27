@@ -1,5 +1,6 @@
 from src.services.interfaces.Function_Reader import FunctionReader
 import os
+from threading import Lock
 
 
 class FileFunctionReader(FunctionReader):
@@ -7,18 +8,22 @@ class FileFunctionReader(FunctionReader):
         self.index = -1
         self.stored_functions = []
         self.stored_func_scenarios = []
+        self.lock = Lock()
 
     def load_functions(self, source_path: str):
         if not os.path.exists(source_path):
             return None
 
-        self.index = -1
-        self.stored_functions = []
-        self.stored_func_scenarios = []
+        with self.lock:
+            self.index = -1
+            self.stored_functions = []
+            self.stored_func_scenarios = []
 
-        with open(source_path, "r") as file:
-            for line in file:
-                if line.strip():
+            with open(source_path, "r") as file:
+                for line in file:                    
+                    if not line.strip():
+                        continue
+
                     parts = line.rsplit(",", maxsplit=1)
                     if len(parts) == 2:
                         self.stored_functions.append(parts[0].strip())
@@ -31,12 +36,20 @@ class FileFunctionReader(FunctionReader):
         return self.index
 
     def read_function(self) -> str:
-        if not self.stored_functions:
-            return ""
-        self._advance_index()
-        return self.stored_functions[self.index]
+        with self.lock:
+            if not self.stored_functions:
+                return ""
+            self._advance_index()
+            return self.stored_functions[self.index]
+
+    def get_current_func(self) -> str:
+        with self.lock:
+            if not self.stored_functions:
+                return ""
+            return self.stored_functions[self.index]
 
     def read_scenario(self) -> str:
-        if not self.stored_func_scenarios:
-            return ""
-        return self.stored_func_scenarios[self.index]
+        with self.lock:
+            if not self.stored_func_scenarios:
+                return ""
+            return self.stored_func_scenarios[self.index]

@@ -1,46 +1,61 @@
 import os
 import csv
+from typing import Tuple, Dict, List
+
 
 class DBOperations:
-    @staticmethod
-    def loadDB():
-        BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
-        csv_path = os.path.join(BASE_DIR, "database", "results.csv")
-        buffer = {}
+    def __init__(self):
+        self.BASE_DIR = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "../../../")
+        )
+        self.csv_path = os.path.join(self.BASE_DIR, "database", "results.csv")
 
-        # si el archivo no existe retornamos buffer vacio
-        if not os.path.exists(csv_path):
-            return buffer
+    def loadDB(self) -> Tuple[Dict, List[str]]:
+        user_results = {}
+        published_functions = []
+
+        # si el archivo no existe retornamos config default vacia
+        if not os.path.exists(self.csv_path):
+            return {}, []
 
         try:
-            with open(csv_path, "r", newline="") as file:
+            with open(self.csv_path, "r", newline="") as file:
                 reader = csv.reader(file)
                 for row in reader:
-                    if row:
-                        # primera fila son ips de usuarios
-                        user_ip = row[0].strip()
+                    if not row:
+                        continue
+                    key = row[0].strip()
+
+                    # functions
+                    if key == "functions":
+                        published_functions = [f.strip() for f in row[1:] if f.strip()]
+                        continue
+
+                    # ips y resultados
+                    try:
                         results = [float(val.strip()) for val in row[1:] if val.strip()]
-                        buffer[user_ip] = {"user": user_ip, "results": results}
+                    except ValueError:  # fila con errores (corrupta)
+                        continue
+
+                    user_results[key] = {"user": key, "results": results}
+
         except Exception:
-            return {}
+            return {}, []
+        return user_results, published_functions
 
-        return buffer
-
-    @staticmethod
-    def saveDB(buffer):
-        if buffer is None:
+    def saveDB(self, buffer, functions):
+        if not buffer or not functions:
             return
 
-        BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
-        csv_path = os.path.join(BASE_DIR, "database", "results.csv")
-        # creamos dir si no existe
-        os.makedirs(os.path.dirname(csv_path), exist_ok=True)
-
-        with open(csv_path, "w", newline="") as file:
+        os.makedirs(os.path.dirname(self.csv_path), exist_ok=True)
+        with open(self.csv_path, "w", newline="") as file:
             writer = csv.writer(file)
 
-            # usuario y sus resultados
+            # ips y resultados
             for user_ip, data in buffer.items():
-                results = data.get("results", [])
-                row = [user_ip] + results
+                row = [user_ip] + data.get("results", [])
                 writer.writerow(row)
+
+            # functions
+            if functions:
+                writer.writerow(["functions"] + functions)

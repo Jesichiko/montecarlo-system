@@ -6,8 +6,9 @@ dependencies = [
     "dotenv>=0.9.9",
     "grpcio>=1.76.0",
     "grpcio-tools>=1.76.0",
+    "matplotlib>=3.10.7",
     "pika>=1.3.2",
-    "shared-lib"
+    "shared-lib",
 ]
 
 [tool.uv.sources]

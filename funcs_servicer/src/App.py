@@ -1,10 +1,16 @@
+import os
 import threading
 import time
+from concurrent import futures
 from tkinter import filedialog
 
 import customtkinter as ctk
+import grpc
+from dotenv import load_dotenv
 
+from src.protos import function_service_pb2_grpc
 from src.rabbitmq.connection import Connection
+from src.services.function_servicer import FunctionServicer
 from src.services.functions_in_file import FileFunctionReader
 from src.services.scenario_generator import ScenarioGenerator
 
@@ -31,13 +37,19 @@ class Dashboard(ctk.CTk):
         self.geometry("1200x800")
         self.configure(fg_color=COLORS["background"])
 
+        # variables de entorno
+        load_dotenv()
+
         # servicios
         self.function_reader = FileFunctionReader()
         self.scenario_generator = None
         self.rabbitmq_connection = None
 
-        # variables de runtime
+        # variables para ejecucion
         self.is_running = False
+        self.gRPC_server = None
+
+        # variables de UI
         self.function_interval = 1
         self.scenario_interval = 1
         self.current_function = ". . ."
@@ -46,46 +58,42 @@ class Dashboard(ctk.CTk):
         self.current_sample_size = 1
         self.publishing_thread = None
 
-        self.grid_columnconfigure(0, weight=1)  # Columna izquierda (Monitor)
-        self.grid_columnconfigure(1, weight=2)  # Columna derecha (Carga)
-        self.grid_rowconfigure(0, weight=0)  # Header
-        self.grid_rowconfigure(1, weight=1)  # Contenido
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=2)
+        self.grid_rowconfigure(0, weight=0)
+        self.grid_rowconfigure(1, weight=1)
 
         # header
         self.create_header()
 
-        # panel Izquierdo (Monitor y Configuracion)
+        # panel Izquierdo
         self.left_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.left_frame.grid(row=1, column=0, sticky="nsew", padx=(40, 20), pady=20)
         self.create_left_column()
 
-        # panel Derecho (Carga de archivos)
+        # panel Derecho
         self.right_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.right_frame.grid(row=1, column=1, sticky="nsew", padx=(20, 40), pady=20)
         self.create_right_column()
 
     def create_header(self):
-        # frame general del header
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
         header_frame.grid(
             row=0, column=0, columnspan=2, sticky="ew", padx=40, pady=(40, 20)
         )
 
-        # frame del titulo
         title_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         title_frame.pack(side="left")
-        ctk.CTkLabel(  # titulo
+        ctk.CTkLabel(
             title_frame,
             text="Generador de Funciones y Escenarios",
             font=("Roboto", 28, "bold"),
             text_color=COLORS["text_white"],
         ).pack(anchor="w")
 
-        # frame de control
         controls_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         controls_frame.pack(side="right")
 
-        # Boton de Parada/Inicio
         self.stop_btn = ctk.CTkButton(
             controls_frame,
             text="Iniciar publicacion",
@@ -101,7 +109,6 @@ class Dashboard(ctk.CTk):
         self.is_running = False
 
     def create_left_column(self):
-        # Titulo Seccion
         ctk.CTkLabel(
             self.left_frame,
             text="Monitor y Configuracion",
@@ -109,21 +116,14 @@ class Dashboard(ctk.CTk):
             text_color=COLORS["text_white"],
         ).pack(anchor="w", pady=(0, 20))
 
-        # 1. Tarjeta de Proceso Actual
         self.create_card(self.left_frame, self.card_content_process)
-
-        # 2. Tarjeta Function Interval
         self.create_card(
             self.left_frame,
             lambda p: self.card_content_slider(
                 p, "Intervalo de Funciones", "seg", 1, 30
             ),
         )
-
-        # 3. Tarjeta Distribucion
         self.create_card(self.left_frame, self.card_content_distribution)
-
-        # 4. Tarjeta Generation Interval
         self.create_card(
             self.left_frame,
             lambda p: self.card_content_slider(
@@ -132,7 +132,6 @@ class Dashboard(ctk.CTk):
         )
 
     def create_right_column(self):
-        # titulo Seccion
         ctk.CTkLabel(
             self.right_frame,
             text="Carga de Funciones",
@@ -140,7 +139,6 @@ class Dashboard(ctk.CTk):
             text_color=COLORS["text_white"],
         ).pack(anchor="w", pady=(0, 20))
 
-        # Boton de carga
         ctk.CTkButton(
             self.right_frame,
             text="Cargar Archivo Funciones",
@@ -151,7 +149,6 @@ class Dashboard(ctk.CTk):
             command=self.load_file,
         ).pack(fill="x", pady=(0, 20))
 
-        # Preview de Archivo
         ctk.CTkLabel(
             self.right_frame,
             text="Vista Previa del Contenido",
@@ -170,7 +167,6 @@ class Dashboard(ctk.CTk):
         )
         preview_textbox.pack(fill="both", expand=True)
 
-        # Contenido vacio por defecto
         sample_text = ". . ."
         preview_textbox.insert("0.0", sample_text)
         preview_textbox.configure(state="disabled")
@@ -211,7 +207,6 @@ class Dashboard(ctk.CTk):
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         frame.pack(padx=20, pady=20, fill="x")
 
-        # Header del slider (Label + Input Box)
         header = ctk.CTkFrame(frame, fg_color="transparent")
         header.pack(fill="x", pady=(0, 10))
 
@@ -236,7 +231,6 @@ class Dashboard(ctk.CTk):
             val_box, text=unit, font=("Roboto", 11), text_color=COLORS["text_muted"]
         ).pack(side="left", padx=(2, 5))
 
-        # Callback para actualizar intervalo
         def update_value(v):
             val = int(v)
             lbl_val.configure(text=str(val))
@@ -245,7 +239,6 @@ class Dashboard(ctk.CTk):
             elif label_text == "Intervalo de Generacion":
                 self.scenario_interval = val
 
-        # Slider
         slider = ctk.CTkSlider(
             frame,
             from_=min_val,
@@ -276,7 +269,6 @@ class Dashboard(ctk.CTk):
         )
         self.distribution_label.pack(anchor="w", pady=(2, 15))
 
-        # Seccion de escenarios publicados
         ctk.CTkLabel(
             frame,
             text="ESCENARIOS PUBLICADOS",
@@ -284,7 +276,6 @@ class Dashboard(ctk.CTk):
             text_color=COLORS["text_muted"],
         ).pack(anchor="w", pady=(10, 5))
 
-        # Textbox para mostrar los escenarios
         self.scenario_textbox = ctk.CTkTextbox(
             frame,
             fg_color=COLORS["background"],
@@ -306,40 +297,25 @@ class Dashboard(ctk.CTk):
         dialog.configure(fg_color=COLORS["background"])
         dialog.resizable(False, False)
 
-        # Centrar el dialogo respecto a la ventana principal
         dialog.transient(self)
-
-        # Esperar a que el diálogo se dibuje
         dialog.update_idletasks()
 
-        # Obtener dimensiones de la ventana principal
         main_x = self.winfo_x()
         main_y = self.winfo_y()
         main_width = self.winfo_width()
         main_height = self.winfo_height()
 
-        # Obtener dimensiones del diálogo
         dialog_width = dialog.winfo_width()
         dialog_height = dialog.winfo_height()
 
-        # Calcular posición centrada
         x = main_x + (main_width - dialog_width) // 2
         y = main_y + (main_height - dialog_height) // 2
 
         dialog.geometry(f"+{x}+{y}")
 
-        # Contenido
         content_frame = ctk.CTkFrame(dialog, fg_color="transparent")
         content_frame.pack(fill="both", expand=True, padx=30, pady=30)
 
-        # Icono de error
-        ctk.CTkLabel(
-            content_frame,
-            text="⚠️",
-            font=("Roboto", 48),
-        ).pack(pady=(0, 15))
-
-        # Mensaje
         ctk.CTkLabel(
             content_frame,
             text=message,
@@ -349,7 +325,6 @@ class Dashboard(ctk.CTk):
             justify="center",
         ).pack(pady=(0, 20))
 
-        # Boton OK
         ctk.CTkButton(
             content_frame,
             text="OK",
@@ -359,15 +334,82 @@ class Dashboard(ctk.CTk):
             width=100,
         ).pack()
 
-        # Intentar tomar grab
         try:
             dialog.wait_visibility()
             dialog.grab_set()
         except Exception:
             pass
 
+    def load_file(self):
+        filename = filedialog.askopenfilename(
+            title="Seleccionar archivo de funciones",
+            filetypes=(("Archivos de texto", "*.txt"), ("Todos los archivos", "*.*")),
+        )
+
+        if filename:
+            try:
+                self.function_reader.load_functions(filename)
+
+                if not self.function_reader.stored_functions:
+                    self.show_error_dialog(
+                        "Error: Archivo vacio o invalido",
+                        "El archivo no contiene funciones validas",
+                    )
+                    return
+
+                self.preview_textbox.configure(state="normal")
+                self.preview_textbox.delete("0.0", "end")
+
+                try:
+                    with open(filename, "r") as f:
+                        content = f.read()
+                        self.preview_textbox.insert("0.0", content)
+                except Exception as e:
+                    self.preview_textbox.insert("0.0", f"Error cargando archivo: {e}")
+                self.preview_textbox.configure(state="disabled")
+
+                distributions = list(set(self.function_reader.stored_func_scenarios))
+                self.scenario_generator = ScenarioGenerator(distributions)
+
+            except Exception:
+                self.show_error_dialog(
+                    "Error al cargar archivo",
+                    "No se pudo cargar el archivo de funciones",
+                )
+
+    def parse_function_variables(self, function_str: str) -> int:
+        import re
+
+        match = re.search(r"f\((.*?)\)", function_str)
+        if match:
+            vars_str = match.group(1)
+            variables = [v.strip() for v in vars_str.split(",") if v.strip()]
+            return len(variables)
+        return 1
+
+    def start_grpc_server(self):
+        # si ya hay un server corriendo, no hacemos nada
+        if self.gRPC_server is not None:
+            return
+
+        # publicamos servicio FunctionServicer
+        self.gRPC_server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        servicer = FunctionServicer(self.function_reader)
+        function_service_pb2_grpc.add_FunctionServiceServicer_to_server(
+            servicer, self.gRPC_server
+        )
+
+        bind_addr = f"{os.getenv('SERVER_HOST')}:{os.getenv('SERVER_PORT')}"
+        self.gRPC_server.add_insecure_port(bind_addr)
+        self.gRPC_server.start()
+
+    def stop_grpc_server(self, grace: int = 0):
+        if self.gRPC_server is None:
+            return
+        self.gRPC_server.stop(grace).wait()
+        self.gRPC_server = None
+
     def toggle_process(self):
-        # verifcamos que se haya cargado un archivo
         if not self.function_reader.stored_functions:
             self.show_error_dialog(
                 "Error: No hay funciones cargadas",
@@ -383,7 +425,6 @@ class Dashboard(ctk.CTk):
                 hover_color="#cc3333",
                 text_color="white",
             )
-            # iniciammos publicacion
             if self.rabbitmq_connection is None:
                 try:
                     self.rabbitmq_connection = Connection()
@@ -401,6 +442,24 @@ class Dashboard(ctk.CTk):
                     )
                     return
 
+                # Inciar servidor para informar sobre la funcion del modelo actual
+                try:
+                    self.start_grpc_server()
+                except Exception as e:
+                    self.is_running = False
+                    self.stop_btn.configure(
+                        text="Iniciar publicacion",
+                        fg_color=COLORS["accent_green"],
+                        hover_color="#00d185",
+                        text_color="black",
+                    )
+                    self.show_error_dialog(
+                        "Error gRPC",
+                        f"No se pudo conectar iniciar servidor gRPC\n{e}",
+                    )
+                    self.stop_grpc_server()
+                    return
+
             if self.publishing_thread is None or not self.publishing_thread.is_alive():
                 self.publishing_thread = threading.Thread(
                     target=self.publish_loop, daemon=True
@@ -414,65 +473,11 @@ class Dashboard(ctk.CTk):
                 text_color="black",
             )
             self.function_label.configure(text=". . .")
-            self.distribution_label.configure(text=". . .")    
+            self.distribution_label.configure(text=". . .")
+            self.scenario_textbox.configure(state="normal")
             self.scenario_textbox.delete("0.0", "end")
             self.scenario_textbox.insert("0.0", "Esperando escenarios...")
-
-    def load_file(self):
-        filename = filedialog.askopenfilename(
-            title="Seleccionar archivo de funciones",
-            filetypes=(("Archivos de texto", "*.txt"), ("Todos los archivos", "*.*")),
-        )
-
-        if filename:
-            try:
-                self.function_reader.load_functions(filename)
-
-                # Verificar que se cargaron funciones
-                if not self.function_reader.stored_functions:
-                    self.show_error_dialog(
-                        "Error: Archivo vacío o inválido",
-                        "El archivo no contiene funciones válidas.\n\nAsegúrate de que cada línea tenga el formato:\nfunción, distribución",
-                    )
-                    return
-
-                # Mostrar preview
-                self.preview_textbox.configure(state="normal")
-                self.preview_textbox.delete("0.0", "end")
-
-                try:
-                    with open(filename, "r") as f:
-                        content = f.read()
-                        self.preview_textbox.insert("0.0", content)
-                except Exception as e:
-                    self.preview_textbox.insert("0.0", f"Error cargando archivo: {e}")
-
-                self.preview_textbox.configure(state="disabled")
-
-                # Obtener las funciones de distribucion unicas
-                distributions = list(set(self.function_reader.stored_func_scenarios))
-                self.scenario_generator = ScenarioGenerator(distributions)
-
-            except Exception:
-                self.show_error_dialog(
-                    "Error al cargar archivo",
-                    "No se pudo cargar el archivo de funciones",
-                )
-
-    def parse_function_variables(self, function_str: str) -> int:
-        # Encuentra cuartas variables tiene una func
-        import re
-
-        # patron f(...) donde ... son las variables
-        match = re.search(r"f\((.*?)\)", function_str)
-        if match:
-            vars_str = match.group(1)
-            # separar por comas y contar
-            variables = [v.strip() for v in vars_str.split(",") if v.strip()]
-            return len(variables)
-
-        # Si no encuentra ninguna variable, retornar 1
-        return 1
+            self.scenario_textbox.configure(state="disabled")
 
     def publish_loop(self):
         last_function_time = 0
@@ -483,7 +488,7 @@ class Dashboard(ctk.CTk):
         while self.is_running:
             current_time = time.time()
 
-            # publicamos nueva funcion si es tiempo e intervalo > 0
+            # Publicar nueva funcion si es tiempo (solo si intervalo > 0)
             if (
                 self.function_interval > 0
                 and current_time - last_function_time >= self.function_interval
@@ -515,21 +520,20 @@ class Dashboard(ctk.CTk):
                             )
                             return
 
-                        # parseamos cuantas variables tiene la funcion
+                        # parseamos cuantas variables tiene la func actual
                         num_variables = self.parse_function_variables(function)
 
-                        # actualizamos vars de UI
+                        # actualizamos variables de UI
                         self.current_function = function
                         self.current_distribution = distribution
                         self.current_sample_size = num_variables
                         self.after(0, self.update_function_display)
 
                         last_function_time = current_time
-                        last_scenario_time = current_time  # reset scenario timer
+                        last_scenario_time = current_time
 
                 except Exception as e:
                     self.is_running = False
-
                     self.after(
                         0, lambda err=e: self.show_error_dialog("Error", f"{err}")
                     )
@@ -543,23 +547,21 @@ class Dashboard(ctk.CTk):
                         ),
                     )
 
-            # publicamos escenario solo si intervalo > 0 y hay distribucion
             if (
                 self.scenario_interval > 0
                 and self.current_distribution != ". . ."
                 and current_time - last_scenario_time >= self.scenario_interval
             ):
                 try:
-                    # tamaño de muestra basado en el numero de variables de la func actual
                     scenario = self.scenario_generator.get_scenario(
                         self.current_sample_size, self.current_distribution
                     )
 
-                    # solo publicamos scenario si hay function publicada
                     if scenario and function:
+                        self.current_scenario = scenario
+
                         try:
                             self.rabbitmq_connection.public_scenario(scenario)
-                            self.current_scenario = scenario
                             self.after(0, self.update_scenario_display)
                         except Exception:
                             self.is_running = False
@@ -581,7 +583,6 @@ class Dashboard(ctk.CTk):
                             )
                             return
                     elif not scenario:
-                        # distribucion no reconocida
                         error_msg = f"No se pudo generar escenario.\n\nDistribucion '{
                             self.current_distribution
                         }' no reconocida."
@@ -596,7 +597,6 @@ class Dashboard(ctk.CTk):
 
                 except Exception as e:
                     self.is_running = False
-
                     self.after(
                         0, lambda err=e: self.show_error_dialog("Error", f"{err}")
                     )
@@ -613,14 +613,11 @@ class Dashboard(ctk.CTk):
             time.sleep(0.1)
 
     def update_function_display(self):
-        # func para actualizar la card de funciones y escenarios publicandose
         self.function_label.configure(text=self.current_function)
         self.distribution_label.configure(text=self.current_distribution)
 
     def update_scenario_display(self):
-        # formateo de todos los valores del escenario para mostrar
         if self.current_scenario:
-            # redondeo de valores a 2 decimales
             rounded = [round(x, 2) for x in self.current_scenario]
             scenario_text = ", ".join(map(str, rounded))
             scenario_text = f"[{scenario_text}]"
@@ -634,7 +631,6 @@ class Dashboard(ctk.CTk):
             self.scenario_textbox.configure(state="disabled")
 
     def update_scenario_error_display(self, error_message):
-        # pop de mensaje de error
         self.scenario_textbox.configure(state="normal", text_color=COLORS["accent_red"])
         self.scenario_textbox.delete("0.0", "end")
         self.scenario_textbox.insert("0.0", error_message)
