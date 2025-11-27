@@ -34,7 +34,7 @@ class NetworkMonitorApp(ctk.CTk):
         self.client_cards = {}
         self.card_order = []
 
-        # Datos históricos para graficas
+        # Datos historicos para graficas
         self.scenarios_history = deque(maxlen=20)
         self.time_labels = deque(maxlen=20)
         self.global_average_history = deque(maxlen=20)
@@ -365,7 +365,7 @@ class NetworkMonitorApp(ctk.CTk):
         self.scenarios_ax.grid(True, alpha=0.1, color='white')
         self.scenarios_canvas.draw()
 
-        # Grafica 2: Comparativa por usuario (barras verticales)
+        # Grafica 2: Comparativa por usuario
         self.users_ax.clear()
         self.users_ax.set_facecolor('#1E1E1E')
         if self.user_results_data:
@@ -415,14 +415,6 @@ class NetworkMonitorApp(ctk.CTk):
                 card.destroy()
             self.client_cards.clear()
             self.card_order.clear()
-            
-            error_label = ctk.CTkLabel(
-                self.cards_container,
-                text="Error de conexion con el servidor\n\nNo se pueden obtener los resultados",
-                font=ctk.CTkFont(size=18, weight="bold"),
-                text_color="#E74C3C",
-            )
-            error_label.grid(row=0, column=0, columnspan=4, pady=100)
             return
 
         colors = ["#2ECC71", "#FF8C00", "#9B59B6", "#F1C40F", "#E74C3C", "#1ABC9C"]
@@ -433,8 +425,7 @@ class NetworkMonitorApp(ctk.CTk):
                 card = self.client_cards[ip_address]
                 try:
                     card.update_values(ports)
-                except Exception as e:
-                    print(f"Error actualizando card {ip_address}: {e}")
+                except Exception:
                     try:
                         index = self.card_order.index(ip_address)
                     except ValueError:
@@ -463,15 +454,14 @@ class NetworkMonitorApp(ctk.CTk):
 
     def update_functions_display(self):
         if not self.published_functions:
-            if not self.function_widgets:
-                no_func_label = ctk.CTkLabel(
-                    self.functions_scroll,
-                    text="No hay funciones disponibles",
-                    font=ctk.CTkFont(size=12),
-                    text_color="#888888",
-                )
-                no_func_label.pack(pady=20)
-                self.function_widgets["_empty_"] = no_func_label
+            no_func_label = ctk.CTkLabel(
+                self.functions_scroll,
+                text="No hay funciones disponibles",
+                font=ctk.CTkFont(size=12),
+                text_color="#888888",
+            )
+            no_func_label.pack(pady=20)
+            self.function_widgets["_empty_"] = no_func_label
         else:
             if "_empty_" in self.function_widgets:
                 self.function_widgets["_empty_"].destroy()
@@ -559,32 +549,40 @@ class NetworkMonitorApp(ctk.CTk):
                     self.after(0, self.update_charts)
 
             except grpc.RpcError as e:
-                print(f"Error gRPC: {e.code()} - {e.details()}")
-                self.connection_error = True
                 self.monitoring = False
+                self.connection_error = True 
+
+                # limpiamos funciones publicadas, graficas y cards
+                self.time_labels.clear()
+                self.published_functions.clear()
+                self.global_average_history.clear()
+                self.scenarios_history.clear()
+                self.user_results_data = {}
 
                 error_msg = f"No se puede conectar al servidor gRPC en {server_address}\n\n"
-
                 if e.code() == grpc.StatusCode.UNAVAILABLE:
-                    error_msg += "El servidor no esta disponible o no esta ejecutandose."
+                    error_msg += "El servidor no esta disponible o no esta ejecutandose"
                 elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
-                    error_msg += "Tiempo de espera agotado al conectar."
+                    error_msg += "Tiempo de espera agotado al conectar"
                 elif e.code() == grpc.StatusCode.UNIMPLEMENTED:
-                    error_msg += "El servidor no implementa el servicio solicitado.\n\nVerifica que el servidor correcto esté ejecutándose."
+                    error_msg += "El servidor no implementa el servicio solicitado\n\nVerifica que el servidor correcto este ejecuaandose"
                 else:
                     error_msg += f"Error: {e.details()}"
-
+                
+                # actualizamos UI
                 self.after(0, self.update_cards)
+                self.after(0, self.update_charts)
+                self.after(0, self.update_functions_display)
                 self.after(0, lambda: self.show_error_dialog("Error de Conexion gRPC", error_msg))
                 self.after(0, lambda: self.monitor_button.configure(
                     text="Iniciar Monitoreo",
                     fg_color="#2ECC71",
                     hover_color="#27AE60",
                 ))
+                self.after(0, lambda: self.scenarios_label.configure(text=str(0)))
                 break
 
             except Exception as e:
-                print(f"Error inesperado: {e}")
                 self.connection_error = True
                 self.monitoring = False
 
