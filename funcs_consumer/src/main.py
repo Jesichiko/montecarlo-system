@@ -9,12 +9,12 @@ from src.rabbitmq.connection import Connection
 from src.services.function_executer import FunctionExecuter
 from src.services.str_function_parser import StrFunctionParser
 import grpc
-
+from time import sleep
 
 def consume_function(function_container: dict):
     connection = Connection()
     for msg in connection.consume_function():
-        if not msg:
+        if not msg or msg == function_container["function"]:
             continue
 
         print(f"Funcion consumida: {msg}")
@@ -24,7 +24,7 @@ def consume_function(function_container: dict):
 def consume_scenario(buffer_scenario: list):
     connection = Connection()
     for msg in connection.consume_scenario():
-        if not msg:
+        if not msg or msg in buffer_scenario:
             continue
 
         print(f"Escenario consumido: {msg}")
@@ -33,17 +33,20 @@ def consume_scenario(buffer_scenario: list):
 
 
 def produce_result(function_container: dict, buffer_scenario: list):
-    connection = Connection
-    if not function_container or not buffer_scenario:
-        return  # no mandamos resultados vacios ya que no tenemos info
+    while True:
+        connection = Connection()
+        if not function_container or not buffer_scenario:
+            continue  # no mandamos resultados vacios ya que no tenemos info
 
-    parsed_function = StrFunctionParser.parse_function(function_container)
-    if not parsed_function:
-        return
+        parsed_function = StrFunctionParser.parse_function(function_container)
+        if not parsed_function:
+            continue
 
-    result = FunctionExecuter.execute(parsed_function, buffer_scenario)
-    if result:
-        connection.publish_result(result)
+        result = FunctionExecuter.execute(parsed_function, buffer_scenario)
+        if result:
+            print("Resultado generado:", result)
+            connection.publish_result(result)
+        sleep(1)
 
 
 def main():
@@ -77,7 +80,16 @@ def main():
     functions_thread.start()
     scenarios_thread.start()
     producer_thread.start()
-    print("Cliente consumidor de modelos/scenarios y productor de resultados iniciado")
+    try:
+        print(
+            "Cliente consumidor de modelos/scenarios y productor de resultados iniciado"
+        )
+        while True:
+            threading.Event().wait(1)
+            print("Funcion actual:", function["function"])
+            print("Scenario actual:", scenario)
+    except KeyboardInterrupt:
+        print("Cliente detenido por el usuario")
 
 
 if __name__ == "__main__":

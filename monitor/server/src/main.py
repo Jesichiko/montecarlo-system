@@ -15,6 +15,15 @@ from src.services.information_servicer import InformationServicer
 
 def consume_results(ip_results: dict):
     connection = Connection()
+
+    initial_results = connection.get_initial_messages("results")
+    for msg in initial_results:
+        user_ip = msg.get("user")
+        result = msg.get("result")
+        ip_results.setdefault(user_ip, {"user": user_ip, "results": []})[
+            "results"
+        ].append(result)
+
     for msg in connection.message_stream("results"):
         if not msg:
             continue
@@ -23,15 +32,15 @@ def consume_results(ip_results: dict):
         user_ip = msg.get("user")
         result = msg.get("result")
 
-        ip_results.setdefault(user_ip, {"user": user_ip, "results": []})["results"].append(result)
+        ip_results.setdefault(user_ip, {"user": user_ip, "results": []})[
+            "results"
+        ].append(result)
 
 
-def consume_functions(functions: set):  
+def consume_functions(functions: set):
     connection = Connection()
     for func in connection.message_stream("functions"):
-        if not func:
-            continue
-        if func in functions:
+        if not func or func in functions:
             continue
 
         print(f"Funcion recibida: {func}")
@@ -57,7 +66,9 @@ def main():
     buffer_results, functions = DBOperations().loadDB()
     if buffer_results and functions:
         print("Resultados en cache cargados")
-        pprint(buffer_results,)
+        pprint(
+            buffer_results,
+        )
         print("Funciones:", functions)
 
     # Evento para detener el thread
@@ -65,21 +76,15 @@ def main():
 
     # threads separados para consumir cada cola
     results_thread = threading.Thread(
-        target=consume_results,
-        args=(buffer_results,),
-        daemon=True
+        target=consume_results, args=(buffer_results,), daemon=True
     )
 
     functions_thread = threading.Thread(
-        target=consume_functions,
-        args=(functions,),
-        daemon=True
+        target=consume_functions, args=(functions,), daemon=True
     )
 
     scenarios_thread = threading.Thread(
-        target=update_scenarios_count,
-        args=(amount_scenarios, stop_event),
-        daemon=True
+        target=update_scenarios_count, args=(amount_scenarios, stop_event), daemon=True
     )
 
     # publicamos servicio InformationServicer
@@ -99,8 +104,8 @@ def main():
     results_thread.start()
     functions_thread.start()
     scenarios_thread.start()
-    
-    print(f"Iniciado server consumidor/cache de resultados en {server_address}") 
+
+    print(f"Iniciado server consumidor/cache de resultados en {server_address}")
     try:
         server.wait_for_termination()
     except KeyboardInterrupt:

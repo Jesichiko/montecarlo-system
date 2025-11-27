@@ -20,7 +20,28 @@ class Connection:
         self.channel.queue_declare(queue="scenarios", durable=False)
         self.channel.queue_declare(queue="functions", durable=True)
         # bindeamos cola functions con el exchange fanout
+        self.channel.exchange_declare(
+            exchange="exchange.models", exchange_type="fanout", durable=True
+        )
         self.channel.queue_bind(queue="functions", exchange="exchange.models")
+
+    def get_initial_messages(self, queue: str) -> list:
+        messages = []
+        while True:
+            # basic_get obtiene UN mensaje y no bloquea
+            method_frame, header_frame, body = self.channel.basic_get(
+                queue=queue, auto_ack=False
+            )
+
+            if method_frame is None:  # cola vacia
+                break
+
+                # Procesar y confirmar inmediatamente
+                data = json.loads(body.decode())
+                messages.append(data)
+                self.channel.basic_ack(method_frame.delivery_tag)
+
+        return messages
 
     # definimos un iterador consumer de pika que devuelve constantemente
     # mensajes empujados por el broker rabbitmq

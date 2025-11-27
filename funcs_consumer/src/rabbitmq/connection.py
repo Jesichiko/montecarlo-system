@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 
 class Connection:
-    def __init__(self, ip, user, password):
+    def __init__(self):
         load_dotenv()
         credentials = pika.PlainCredentials(
             os.getenv("RABBIT_USER"), os.getenv("RABBIT_PWD")
@@ -19,13 +19,18 @@ class Connection:
         self.channel = self.connection.channel()
         self._user_models_queue = f"{self._get_ip_address()}.models"
         self.channel.queue_declare(queue="results", durable=True)
-        self.channel.queue_declare(
-            queue=self._user_models_queue, exchange="exchange.models"
-        )
         self.channel.queue_declare(queue="scenarios", durable=False)
+        self.channel.queue_declare(queue=self._user_models_queue)
+        self.channel.exchange_declare(
+            exchange="exchange.models", exchange_type="fanout", durable=True
+        )
+        self.channel.queue_bind(
+            exchange="exchange.models", queue=self._user_models_queue, routing_key=""
+        )
 
     # funcion para poder saber nuestra ip (ya que es necesaria para identificar
     # nuestra participacion ante el monitor)
+
     def _get_ip_address(self):
         try:
             # abrimos un socket, tomamos nuestra ip y cerramos socket
@@ -54,7 +59,8 @@ class Connection:
             self.channel.basic_ack(method.delivery_tag)
 
     def publish_result(self, result: int):
-        result_json = json.dumps(result)
+        final_result = {"user": self._get_ip_address(), "result": result}
+        result_json = final_result.dumps(final_result)
         # publicamos el mensaje
         self.channel.basic_publish(
             exchange="",
@@ -67,4 +73,3 @@ class Connection:
 
     def close_connection(self):
         self.connection.close()
-
