@@ -2,7 +2,7 @@ from shared_lib.protos import information_service_pb2, information_service_pb2_g
 
 
 class InformationServicer(information_service_pb2_grpc.InformationServiceServicer):
-    def __init__(self, buffer: dict, functions: list, scenarios: dict):
+    def __init__(self, buffer: dict, functions: set, scenarios: dict):
         self.buffer = buffer
         self.functions = functions
         self.scenarios = scenarios
@@ -16,7 +16,7 @@ class InformationServicer(information_service_pb2_grpc.InformationServiceService
             result_list.values.extend(values.get("results", []))
 
         # agregamos funciones publicadas
-        response.published_functions.extend(self.functions)
+        response.published_functions.extend(list(self.functions))
 
         # agregamos total de escenarios
         response.total_scenarios = self.scenarios["value"]

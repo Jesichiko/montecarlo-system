@@ -1,5 +1,6 @@
 import os
 import threading
+import time
 from concurrent import futures
 from pprint import pprint
 
@@ -12,31 +13,40 @@ from src.services.db_operations.operations import DBOperations
 from src.services.information_servicer import InformationServicer
 
 
-def run_consumer(
-    connection: Connection, ip_results: dict, functions: list, scenarios: dict
-):
-    # consumir resultados
+def consume_results(ip_results: dict):
+    connection = Connection()
     for msg in connection.message_stream("results"):
         if not msg:
             continue
 
-        print(f"Mensaje {msg} consumido")
+        print(f"Resultado consumido: {msg}")
         user_ip = msg.get("user")
         result = msg.get("result")
 
-        ip_results.setdefault(user_ip, {"user": user_ip, "results": []})[
-            "results"
-        ].append(result)
+        ip_results.setdefault(user_ip, {"user": user_ip, "results": []})["results"].append(result)
 
-    # consumir funciones
-    for msg in connection.message_stream("functions"):
-        if not msg:
+
+def consume_functions(functions: set):  
+    connection = Connection()
+    for func in connection.message_stream("functions"):
+        if not func:
+            continue
+        if func not in functions:
             continue
 
-        print(f"Function recibida: {msg}")
-        functions.append(msg)
-    # actualizar escenarios
-    scenarios["value"] = connection.get_amount_scenarios()
+        print(f"Funcion recibida: {func}")
+        if func not in functions:
+            functions.add(func)
+
+
+def update_scenarios_count(scenarios: dict, stop_event: threading.Event):
+    connection = Connection()
+    while not stop_event.is_set():
+        try:
+            scenarios["value"] = connection.get_amount_scenarios()
+        except Exception as e:
+            print(f"Error actualizando escenarios: {e}")
+        time.sleep(1)  # Actualiza cada segundo
 
 
 def main():
@@ -47,17 +57,32 @@ def main():
     buffer_results, functions = DBOperations().loadDB()
     if buffer_results and functions:
         print("Resultados en cache cargados")
-        pprint(buffer_results)
+        pprint(buffer_results,)
         print("Funciones:", functions)
 
-    # hilo para consumir mensajes de resultados de nuevos usuarios
-    consumer_thread = threading.Thread(
-        target=run_consumer,
-        args=(connection, buffer_results, functions, amount_scenarios),
-        daemon=True,
+    # Evento para detener el thread
+    stop_event = threading.Event()
+
+    # threads separados para consumir cada cola
+    results_thread = threading.Thread(
+        target=consume_results,
+        args=(buffer_results,),
+        daemon=True
     )
 
-    # publicamos servicio ResultsServicer
+    functions_thread = threading.Thread(
+        target=consume_functions,
+        args=(functions,),
+        daemon=True
+    )
+
+    scenarios_thread = threading.Thread(
+        target=update_scenarios_count,
+        args=(amount_scenarios, stop_event),
+        daemon=True
+    )
+
+    # publicamos servicio InformationServicer
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     information_service_pb2_grpc.add_InformationServiceServicer_to_server(
         InformationServicer(
@@ -69,15 +94,19 @@ def main():
     server_address = f"{os.getenv('SERVER_HOST')}:{os.getenv('SERVER_PORT')}"
     server.add_insecure_port(server_address)
 
-    # iniciamos server
+    # Iniciar server y todos los threads
     server.start()
-    consumer_thread.start()
-    print(f"Iniciado server consumidor/cache de resultados en {server_address}")
+    results_thread.start()
+    functions_thread.start()
+    scenarios_thread.start()
+    
+    print(f"Iniciado server consumidor/cache de resultados en {server_address}") 
     try:
         server.wait_for_termination()
     except KeyboardInterrupt:
-        print("Termiando servidor, guardando base de datos")
-        DBOperations.saveDB(buffer_results, functions)
+        print("\nTerminando servidor, guardando base de datos...")
+        stop_event.set()
+        DBOperations().saveDB(buffer_results, functions)
         connection.close_connection()
         server.stop(0)
 

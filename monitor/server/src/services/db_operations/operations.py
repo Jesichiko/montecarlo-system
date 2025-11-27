@@ -1,7 +1,7 @@
 import csv
 import os
 import re
-from typing import Dict, List, Tuple
+from typing import Dict, Set, Tuple
 
 
 class DBOperations:
@@ -11,13 +11,13 @@ class DBOperations:
         )
         self.csv_path = os.path.join(self.BASE_DIR, "database", "results.csv")
 
-    def loadDB(self) -> Tuple[Dict, List[str]]:
+    def loadDB(self) -> Tuple[Dict, Set[str]]:
         user_results = {}
-        published_functions = []
+        published_functions = set()
 
         # si el archivo no existe retornamos config default vacia
         if not os.path.exists(self.csv_path):
-            return {}, []
+            return {}, set()
 
         try:
             with open(self.csv_path, "r", newline="") as file:
@@ -35,7 +35,7 @@ class DBOperations:
                         func_pattern = r"(f\([^)]+\)=[^,]+(?:,[a-z]+)?)"
                         matches = re.findall(func_pattern, functions_str)
                         if matches:
-                            published_functions = [m.strip() for m in matches]
+                            published_functions = set(m.strip() for m in matches)
                         continue
 
                     # ips y resultados
