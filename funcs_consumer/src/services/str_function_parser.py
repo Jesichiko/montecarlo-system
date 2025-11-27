@@ -1,0 +1,2 @@
+class StrFunctionParser:
+    pass
