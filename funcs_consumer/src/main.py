@@ -28,7 +28,6 @@ def consume_function(
                 # Señalar que hay nueva funcion
                 new_data_event.set()
 
-
 def consume_scenario(
     buffer_scenario: list, lock: threading.Lock, new_data_event: threading.Event
 ):
@@ -65,6 +64,9 @@ def produce_result(
         with lock:
             current_function = function_container.get("function")
             current_scenario = buffer_scenario.copy() if buffer_scenario else None
+            
+            if current_scenario is None or current_function is None:
+                continue
 
             # Verificar si son los mismos datos que ya procesamos
             if current_function == last_function and current_scenario == last_scenario:

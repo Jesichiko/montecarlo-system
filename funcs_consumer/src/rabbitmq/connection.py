@@ -20,7 +20,7 @@ class Connection:
         self._user_models_queue = f"{self._get_ip_address()}.models"
 
         # fair dispatch para todos los clientes
-        # self.channel.basic_qos(prefetch_count=1)
+        self.channel.basic_qos(prefetch_count=1)
 
         self.channel.queue_declare(queue="results", durable=True)
         self.channel.queue_declare(queue="scenarios", durable=False)

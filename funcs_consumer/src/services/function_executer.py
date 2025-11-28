@@ -46,7 +46,9 @@ class FunctionExecuter:
     def execute(parsed_function: Dict[str, any], scenario: List[float]):
         variables = parsed_function.get("vars", [])
         expression = parsed_function.get("expression")
-
+        
+        print("Escenario:", scenario)
+        print("Funcion parseada", parsed_function)
         if len(variables) != len(scenario):
             print(
                 f"Error: Tamaño de variables ({len(variables)}) "
